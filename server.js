@@ -7,7 +7,7 @@ const path = require('path');
 const app = express();
 app.use(cors({ origin: '*' }));
 app.use(express.json());
-app.use(express.static(path.join(__dirname, 'public')));
+app.use(express.static(path.join(__dirname, 'index.html')));
 
 const server = http.createServer(app);
 const io = new Server(server, {
