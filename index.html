@@ -262,6 +262,7 @@ body{background:var(--bg);color:var(--text);font-family:'Rajdhani',sans-serif;ov
 let myName = '';
 let myTgId = '';
 let myInitials = '⚔';
+let wasPlaying = false; // Kopma durumunda takip için
 
 // Telegram WebApp
 const TG = window.Telegram && window.Telegram.WebApp;
@@ -341,7 +342,13 @@ const socket = io(SERVER, {
 socket.on('connect', () => {
   console.log('[Socket] Bağlandı:', socket.id);
   setLoad(100, 'BAĞLANDI! ✓');
-  setTimeout(() => showScreen('menuScreen'), 600);
+  
+  // Eğer oyundan koptuysa ve geri geldiyse otomatik oyun bul
+  if (wasPlaying) {
+    G.findGame();
+  } else {
+    setTimeout(() => showScreen('menuScreen'), 600);
+  }
 });
 
 socket.on('connect_error', (err) => {
@@ -351,6 +358,7 @@ socket.on('connect_error', (err) => {
 
 socket.on('disconnect', (reason) => {
   console.warn('[Socket] Koptu:', reason);
+  if (G.active) wasPlaying = true; // Oyundayken koptu
   // Auto-reconnect socket.io handles it
 });
 
@@ -394,7 +402,11 @@ document.getElementById('btnRooms').onclick = () => {
 };
 document.getElementById('btnRefreshRooms').onclick = () => socket.emit('getRooms');
 document.getElementById('btnBackMenu').onclick = () => showScreen('menuScreen');
-document.getElementById('btnFindGame').onclick = () => G.findGame();
+document.getElementById('btnFindGame').onclick = function() {
+  this.disabled = true;
+  this.textContent = 'ARANIYOR...';
+  G.findGame();
+};
 document.getElementById('btnCreate').onclick = () => G.createRoom();
 
 // ═══════════════════════════════════════════
@@ -514,6 +526,10 @@ const G = {
   createRoom() { socket.emit('createRoom', { name: myName, tgId: myTgId }); },
 
   onJoined(data) {
+    // Butonları resetle
+    const btn = document.getElementById('btnFindGame');
+    btn.disabled = false; btn.textContent = '⚔️ OYUN BUL';
+
     console.log('[Joined]', data.roomId, data.team);
     this.roomId  = data.roomId;
     this.myId    = data.playerId;
@@ -523,6 +539,7 @@ const G = {
     this.mapH    = data.mapHeight || 3200;
     this.scores  = data.scores || { blue: 0, red: 0 };
     this.dead    = false;
+    wasPlaying   = false; // Başarıyla girdik, flag'i sıfırla
 
     // Populate players
     this.players.clear();
@@ -1020,16 +1037,8 @@ const G = {
 };
 
 // ── Init ─────────────────────────────────
-window.addEventListener('load', () => {
-  G.init();
-  // Simulate loading progress
-  let p = 10;
-  const interval = setInterval(() => {
-    p = Math.min(p + 8, 85);
-    setLoad(p);
-    if (p >= 85) clearInterval(interval);
-  }, 300);
-});
+// Sayfa yüklendiği gibi başlat (Load bekleme, race condition önle)
+G.init();
 </script>
 </body>
 </html>
