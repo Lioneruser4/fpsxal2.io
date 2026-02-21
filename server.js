@@ -284,7 +284,7 @@ io.on('connection', (socket) => {
     // Herkese oda güncelle
     io.to(room.id).emit('roomUpdate', getRoomInfo(room));
 
-    console.log(`[Katıldı] ${currentPlayer.name} (${team}) -> ${room.id} [${room.players.size} oyuncu]`);
+    console.log(`[Katıldı] ${currentPlayer.name} (TG: ${currentPlayer.tgId || 'Yok'}) (${team}) -> ${room.id} [${room.players.size} oyuncu]`);
   }
 
   // Odaları listele
@@ -294,6 +294,7 @@ io.on('connection', (socket) => {
 
   // Oyun bul - mevcut odaya katıl veya yeni oda yap
   socket.on('findGame', (data) => {
+    console.log(`[İstek] Oyun Bul: ${socket.id} (${data ? data.name : '?'})`);
     const room = findOrCreateRoom();
     doJoin(room, data || {});
   });
