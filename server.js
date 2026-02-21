@@ -7,7 +7,8 @@ const path = require('path');
 const app = express();
 app.use(cors({ origin: '*' }));
 app.use(express.json());
-app.use(express.static(path.join(__dirname, 'index.html')));
+app.use(express.static(path.join(__dirname, 'public')));
+app.use(express.static(__dirname));
 
 const server = http.createServer(app);
 const io = new Server(server, {
@@ -43,41 +44,41 @@ function generateWalls() {
   w.push({ x: MAP_W - T, y: 0, w: T, h: MAP_H });
 
   const hz = [
-    [300,400,500],[300,800,320],[720,600,440],[1200,300,620],
-    [1020,720,340],[1420,900,540],[1820,420,420],[1720,720,340],
-    [920,1120,640],[420,1420,460],[1120,1420,540],[1820,1220,440],
-    [620,1720,740],[1520,1640,520],[320,2000,640],[1120,1900,440],
-    [1720,1920,420],[200,2400,500],[900,2300,600],[1500,2500,400],
-    [2000,600,350],[2100,1000,400],[2200,1400,350],[2000,1800,500],
-    [2300,2200,450],[600,2800,600],[1300,2700,500],[1900,2800,400],
-    [400,3000,500],[1100,2950,600],[1800,3000,450],[2400,2600,350],
+    [300, 400, 500], [300, 800, 320], [720, 600, 440], [1200, 300, 620],
+    [1020, 720, 340], [1420, 900, 540], [1820, 420, 420], [1720, 720, 340],
+    [920, 1120, 640], [420, 1420, 460], [1120, 1420, 540], [1820, 1220, 440],
+    [620, 1720, 740], [1520, 1640, 520], [320, 2000, 640], [1120, 1900, 440],
+    [1720, 1920, 420], [200, 2400, 500], [900, 2300, 600], [1500, 2500, 400],
+    [2000, 600, 350], [2100, 1000, 400], [2200, 1400, 350], [2000, 1800, 500],
+    [2300, 2200, 450], [600, 2800, 600], [1300, 2700, 500], [1900, 2800, 400],
+    [400, 3000, 500], [1100, 2950, 600], [1800, 3000, 450], [2400, 2600, 350],
   ];
   const vt = [
-    [620,100,360],[1020,200,260],[1420,100,360],[1920,100,360],
-    [520,450,420],[920,660,520],[1320,360,420],[1720,460,320],
-    [2120,460,620],[720,860,320],[1120,760,420],[1620,960,420],
-    [420,1220,260],[820,1160,320],[1320,1120,360],[2020,1260,420],
-    [620,1460,320],[1020,1460,320],[1520,1660,360],[1920,1660,320],
-    [360,1760,320],[760,1760,320],[1220,1960,360],[1720,1960,360],
-    [2120,1860,420],[400,2200,400],[800,2100,500],[1200,2200,400],
+    [620, 100, 360], [1020, 200, 260], [1420, 100, 360], [1920, 100, 360],
+    [520, 450, 420], [920, 660, 520], [1320, 360, 420], [1720, 460, 320],
+    [2120, 460, 620], [720, 860, 320], [1120, 760, 420], [1620, 960, 420],
+    [420, 1220, 260], [820, 1160, 320], [1320, 1120, 360], [2020, 1260, 420],
+    [620, 1460, 320], [1020, 1460, 320], [1520, 1660, 360], [1920, 1660, 320],
+    [360, 1760, 320], [760, 1760, 320], [1220, 1960, 360], [1720, 1960, 360],
+    [2120, 1860, 420], [400, 2200, 400], [800, 2100, 500], [1200, 2200, 400],
   ];
   const boxes = [
-    [820,420,80,80],[1220,620,80,80],[1620,320,80,80],
-    [520,1020,80,80],[1020,1320,80,80],[1820,1120,80,80],
-    [720,1620,80,80],[1420,1820,80,80],[920,2020,80,80],
-    [1620,2120,80,80],[260,1620,80,80],[2260,620,80,80],
+    [820, 420, 80, 80], [1220, 620, 80, 80], [1620, 320, 80, 80],
+    [520, 1020, 80, 80], [1020, 1320, 80, 80], [1820, 1120, 80, 80],
+    [720, 1620, 80, 80], [1420, 1820, 80, 80], [920, 2020, 80, 80],
+    [1620, 2120, 80, 80], [260, 1620, 80, 80], [2260, 620, 80, 80],
   ];
 
-  for (const [x,y,len] of hz) w.push({ x, y, w: len, h: T });
-  for (const [x,y,len] of vt) w.push({ x, y, w: T, h: len });
-  for (const [x,y,bw,bh] of boxes) w.push({ x, y, w: bw, h: bh });
+  for (const [x, y, len] of hz) w.push({ x, y, w: len, h: T });
+  for (const [x, y, len] of vt) w.push({ x, y, w: T, h: len });
+  for (const [x, y, bw, bh] of boxes) w.push({ x, y, w: bw, h: bh });
   return w;
 }
 
 function collidesWall(x, y, r) {
   for (const wall of WALLS) {
     if (x - r < wall.x + wall.w && x + r > wall.x &&
-        y - r < wall.y + wall.h && y + r > wall.y) return true;
+      y - r < wall.y + wall.h && y + r > wall.y) return true;
   }
   return false;
 }
@@ -85,7 +86,7 @@ function collidesWall(x, y, r) {
 function bulletHitsWall(bx, by) {
   for (const wall of WALLS) {
     if (bx >= wall.x && bx <= wall.x + wall.w &&
-        by >= wall.y && by <= wall.y + wall.h) return true;
+      by >= wall.y && by <= wall.y + wall.h) return true;
   }
   return false;
 }
@@ -228,6 +229,7 @@ io.on('connection', (socket) => {
   let currentPlayer = null;
 
   console.log(`[Bağlandı] ${socket.id}`);
+  socket.emit('connected');
 
   function joinRoomById(roomId, playerData) {
     const room = rooms.get(roomId);
@@ -236,6 +238,7 @@ io.on('connection', (socket) => {
   }
 
   function doJoin(room, playerData) {
+    playerData = playerData || {};
     const team = assignTeam(room);
     if (!team) { socket.emit('roomFull', { msg: 'Oda dolu!' }); return; }
 
@@ -243,10 +246,14 @@ io.on('connection', (socket) => {
     room.teams[team].add(socket.id);
 
     const sp = spawnPos(team);
+
+    const pName = playerData.name || playerData.first_name || playerData.username || 'Asker';
+    const pTgId = playerData.tgId || playerData.id || null;
+
     currentPlayer = {
       id: socket.id,
-      name: playerData.name || 'Asker',
-      tgId: playerData.tgId || null,
+      name: pName,
+      tgId: pTgId,
       x: sp.x, y: sp.y,
       angle: team === 'blue' ? 0 : Math.PI,
       hp: 100, team,
@@ -288,18 +295,20 @@ io.on('connection', (socket) => {
   // Oyun bul - mevcut odaya katıl veya yeni oda yap
   socket.on('findGame', (data) => {
     const room = findOrCreateRoom();
-    doJoin(room, data);
+    doJoin(room, data || {});
   });
 
   // Belirli odaya katıl
   socket.on('joinRoom', (data) => {
-    joinRoomById(data.roomId, data);
+    if (data && data.roomId) {
+      joinRoomById(data.roomId, data);
+    }
   });
 
   // Yeni oda oluştur ve katıl
   socket.on('createRoom', (data) => {
     const newRoom = createRoom();
-    doJoin(newRoom, data);
+    doJoin(newRoom, data || {});
   });
 
   // Input
