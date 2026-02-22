@@ -6,34 +6,35 @@ const cors = require('cors');
 const app = express();
 const server = http.createServer(app);
 const io = socketIO(server, {
-  cors: {
-    origin: "*",
-    methods: ["GET", "POST"]
-  }
+  cors: { origin: "*", methods: ["GET", "POST"] } // Tüm bağlantılara izin ver
 });
 
 app.use(cors());
 app.use(express.json());
 
-// Oda yönetimi
-const rooms = new Map();
-
-// API endpoint'leri
-app.get('/api/rooms', (req, res) => {
-  const roomList = Array.from(rooms.values()).map(room => ({
-    id: room.id,
-    name: room.name,
-    redCount: room.redCount || 0,
-    blueCount: room.blueCount || 0
-  }));
-  res.json(roomList);
+// Sunucunun çalıştığını gösteren basit bir rota
+app.get('/', (req, res) => {
+  res.send('🎮 SAŞKİ OYUNU Sunucusu Çalışıyor!');
 });
 
+// Aktif odaları listeleyen API
+app.get('/api/rooms', (req, res) => {
+  const activeRooms = Array.from(rooms.values()).map(r => ({
+    id: r.id,
+    name: r.name,
+    players: Object.keys(r.players).length,
+    redCount: r.redCount,
+    blueCount: r.blueCount,
+    map: r.map
+  }));
+  res.json(activeRooms);
+});
+
+// Oda oluşturma API'si
 app.post('/api/rooms/create', (req, res) => {
-  const { name, map, user } = req.body;
-  const roomId = Math.random().toString(36).substring(7);
-  
-  const room = {
+  const { name, map } = req.body;
+  const roomId = Math.random().toString(36).substring(2, 8).toUpperCase();
+  const newRoom = {
     id: roomId,
     name: name || `Oda ${roomId}`,
     map: map || 'backrooms',
@@ -42,167 +43,177 @@ app.post('/api/rooms/create', (req, res) => {
     teamBlue: [],
     redCount: 0,
     blueCount: 0,
-    created: Date.now(),
-    createdBy: user?.id
+    created: Date.now()
   };
-  
-  rooms.set(roomId, room);
-  res.json(room);
+  rooms.set(roomId, newRoom);
+  res.json({ id: roomId });
 });
+
+// ---- Oda ve Oyuncu Yönetimi ----
+const rooms = new Map();
+
+// Sunucuyu uyanık tutan ping mekanizması (20 saniyede bir)
+setInterval(() => {
+  http.get(`http://localhost:${PORT}`, (res) => {
+    console.log('🔁 Kendi kendine ping atıldı, durum:', res.statusCode);
+  }).on('error', (err) => {
+    console.log('🔁 Ping hatası (önemli değil):', err.message);
+  });
+}, 20000); // 20 saniye
 
 // Socket.IO bağlantıları
 io.on('connection', (socket) => {
-  console.log('Yeni oyuncu bağlandı:', socket.id);
-  
-  // Oyuncu girişi
-  socket.on('player:join', (data) => {
-    const { telegramId, username, roomId } = data;
-    
-    // Mevcut oda bul veya oluştur
-    let room;
-    if (roomId && rooms.has(roomId)) {
-      room = rooms.get(roomId);
+  console.log('✅ Yeni oyuncu bağlandı:', socket.id);
+
+  // 1. Oyuncu odaya katılıyor
+  socket.on('joinRoom', (data) => {
+    const { username, telegramId, roomId } = data;
+    let targetRoom;
+
+    // Eğer oda ID'si verilmemişse veya oda doluysa yeni oda bul/oluştur
+    if (!roomId || !rooms.has(roomId) || rooms.get(roomId).redCount + rooms.get(roomId).blueCount >= 20) {
+      targetRoom = findAvailableRoom();
     } else {
-      // Yeni oda bul veya oluştur
-      room = findOrCreateRoom();
+      targetRoom = rooms.get(roomId);
     }
-    
-    socket.join(room.id);
-    socket.roomId = room.id;
-    
-    // Takım seçimi (az olan takıma ekle)
-    let team = 'blue';
-    if (room.redCount <= room.blueCount) {
-      team = 'red';
-      room.redCount++;
-      room.teamRed.push(socket.id);
+
+    // Takım seçimi (az olan takım)
+    const team = targetRoom.redCount <= targetRoom.blueCount ? 'red' : 'blue';
+    if (team === 'red') {
+      targetRoom.redCount++;
+      targetRoom.teamRed.push(socket.id);
     } else {
-      room.blueCount++;
-      room.teamBlue.push(socket.id);
+      targetRoom.blueCount++;
+      targetRoom.teamBlue.push(socket.id);
     }
-    
-    const playerData = {
+
+    // Oyuncu nesnesi
+    const player = {
       id: socket.id,
-      telegramId,
-      username,
-      team,
+      username: username || `Oyuncu${Math.floor(Math.random() * 1000)}`,
+      telegramId: telegramId || null,
+      team: team,
       health: 100,
-      kills: 0,
-      deaths: 0,
-      position: { x: Math.random() * 10 - 5, y: 0, z: Math.random() * 10 - 5 }
+      position: { x: Math.random() * 10 - 5, y: 1, z: Math.random() * 10 - 5 },
+      rotation: 0,
+      isAlive: true
     };
-    
-    room.players[socket.id] = playerData;
-    socket.playerData = playerData;
-    
-    // Yeni oyuncuya kendi bilgilerini gönder
-    socket.emit('player:joined', playerData);
-    
-    // Diğer oyunculara yeni oyuncuyu bildir
-    socket.to(room.id).emit('player:new', playerData);
-    
-    // Odaya katılan herkese güncel oda bilgisi
-    io.to(room.id).emit('room:update', {
-      id: room.id,
-      redCount: room.redCount,
-      blueCount: room.blueCount
+
+    targetRoom.players[socket.id] = player;
+    socket.join(targetRoom.id);
+    socket.playerData = player;
+    socket.currentRoom = targetRoom.id;
+
+    // Oyuncuya odaya katıldığına dair bilgi gönder
+    socket.emit('roomJoined', {
+      roomId: targetRoom.id,
+      players: targetRoom.players,
+      redCount: targetRoom.redCount,
+      blueCount: targetRoom.blueCount,
+      yourTeam: team
     });
-    
-    console.log(`${username} ${team} takımına katıldı`);
+
+    // Diğer oyunculara yeni oyuncuyu bildir
+    socket.to(targetRoom.id).emit('newPlayer', player);
+
+    console.log(`${player.username} (${team}) odasına katıldı: ${targetRoom.id}`);
   });
-  
-  // Oyuncu hareketi
-  socket.on('player:move', (position) => {
-    if (socket.playerData && socket.roomId) {
+
+  // 2. Oyuncu hareket ettiğinde
+  socket.on('playerMove', (position) => {
+    if (socket.playerData && socket.currentRoom) {
       socket.playerData.position = position;
-      socket.to(socket.roomId).emit('player:moved', {
+      socket.to(socket.currentRoom).emit('playerMoved', {
         id: socket.id,
-        position
+        position: position
       });
     }
   });
-  
-  // Ateş etme
-  socket.on('player:shoot', (data) => {
-    if (!socket.roomId || !socket.playerData) return;
-    
-    const room = rooms.get(socket.roomId);
+
+  // 3. Oyuncu ateş ettiğinde
+  socket.on('playerShoot', (data) => {
+    if (!socket.playerData || !socket.currentRoom) return;
+    const room = rooms.get(socket.currentRoom);
     if (!room) return;
-    
+
     const { targetId, hitZone } = data;
     const target = room.players[targetId];
     
-    if (target) {
+    if (target && target.isAlive && target.team !== socket.playerData.team) {
       // Hasar hesapla
       const damage = hitZone === 'head' ? 100 : hitZone === 'body' ? 35 : 20;
       target.health -= damage;
-      
-      // Hasarı herkese bildir
-      io.to(socket.roomId).emit('player:hit', {
-        playerId: targetId,
+
+      // Hasar bilgisini herkese gönder
+      io.to(socket.currentRoom).emit('playerHit', {
+        targetId: targetId,
         health: target.health,
-        shooter: socket.playerData.username
+        shooterId: socket.id,
+        hitZone: hitZone
       });
-      
+
       // Ölüm kontrolü
       if (target.health <= 0) {
-        socket.playerData.kills++;
-        target.deaths++;
-        
-        io.to(socket.roomId).emit('player:dead', {
-          killer: socket.playerData.username,
-          victim: target.username
+        target.isAlive = false;
+        io.to(socket.currentRoom).emit('playerDied', {
+          victimId: targetId,
+          killerId: socket.id,
+          killerName: socket.playerData.username,
+          victimName: target.username
         });
-        
-        // 5 saniye sonra yeniden doğ
+
+        // Yeniden doğma (5 saniye sonra)
         setTimeout(() => {
           if (room.players[targetId]) {
             target.health = 100;
-            target.position = { 
-              x: Math.random() * 10 - 5, 
-              y: 0, 
-              z: Math.random() * 10 - 5 
-            };
-            
-            io.to(socket.roomId).emit('player:respawn', target);
+            target.isAlive = true;
+            target.position = { x: Math.random() * 10 - 5, y: 1, z: Math.random() * 10 - 5 };
+            io.to(socket.currentRoom).emit('playerRespawn', target);
           }
         }, 5000);
       }
     }
   });
-  
-  // Yeniden bağlanma
-  socket.on('player:reconnect', (telegramId) => {
-    // Oyuncunun eski odasını bul
-    for (const [id, room] of rooms) {
-      for (const playerId in room.players) {
-        if (room.players[playerId].telegramId === telegramId) {
-          const player = room.players[playerId];
-          socket.join(room.id);
-          socket.roomId = room.id;
-          socket.playerData = player;
+
+  // 4. Oyuncu yeniden bağlanma denemesi
+  socket.on('reconnectPlayer', (telegramId) => {
+    for (let room of rooms.values()) {
+      for (let p of Object.values(room.players)) {
+        if (p.telegramId === telegramId) {
+          // Eski bağlantıyı bul ve güncelle
+          const oldId = p.id;
+          p.id = socket.id;
+          room.players[socket.id] = p;
+          delete room.players[oldId];
           
-          socket.emit('player:reconnected', {
-            room: {
-              id: room.id,
-              redCount: room.redCount,
-              blueCount: room.blueCount
-            },
-            playerData: player
+          if (p.team === 'red') {
+            room.teamRed = room.teamRed.map(id => id === oldId ? socket.id : id);
+          } else {
+            room.teamBlue = room.teamBlue.map(id => id === oldId ? socket.id : id);
+          }
+
+          socket.join(room.id);
+          socket.playerData = p;
+          socket.currentRoom = room.id;
+
+          socket.emit('reconnectSuccess', {
+            roomId: room.id,
+            players: room.players,
+            yourData: p
           });
           
-          // Diğer oyunculara yeniden bağlandığını bildir
-          socket.to(room.id).emit('player:reconnected', player.id);
+          socket.to(room.id).emit('playerReconnected', socket.id);
+          console.log('🔄 Oyuncu yeniden bağlandı:', p.username);
           return;
         }
       }
     }
   });
-  
-  // Bağlantı kopması
+
+  // 5. Bağlantı koptuğunda
   socket.on('disconnect', () => {
-    if (socket.roomId && socket.playerData) {
-      const room = rooms.get(socket.roomId);
+    if (socket.playerData && socket.currentRoom) {
+      const room = rooms.get(socket.currentRoom);
       if (room) {
         // Takımdan çıkar
         if (socket.playerData.team === 'red') {
@@ -216,54 +227,44 @@ io.on('connection', (socket) => {
         // Oyuncuyu sil
         delete room.players[socket.id];
         
-        // Oda güncellemesi gönder
-        io.to(socket.roomId).emit('room:update', {
-          id: room.id,
-          redCount: room.redCount,
-          blueCount: room.blueCount
-        });
-        
-        // Diğer oyunculara ayrılmayı bildir
-        socket.to(socket.roomId).emit('player:left', socket.id);
+        // Diğerlerine bildir
+        socket.to(socket.currentRoom).emit('playerLeft', socket.id);
         
         // Oda boşsa sil
         if (room.redCount + room.blueCount === 0) {
-          rooms.delete(socket.roomId);
-          console.log('Oda silindi:', socket.roomId);
+          rooms.delete(socket.currentRoom);
+          console.log('🗑️ Boş oda silindi:', socket.currentRoom);
         }
       }
+      console.log('❌ Oyuncu ayrıldı:', socket.playerData.username);
     }
-    console.log('Oyuncu ayrıldı:', socket.id);
   });
 });
 
-// Oda bul veya oluştur fonksiyonu
-function findOrCreateRoom() {
-  // Önce dolu olmayan oda bul
-  for (const [id, room] of rooms) {
-    if (room.redCount + room.blueCount < 20) { // max 20 kişi (10v10)
+// Uygun oda bulma fonksiyonu
+function findAvailableRoom() {
+  for (let room of rooms.values()) {
+    if (room.redCount + room.blueCount < 20) {
       return room;
     }
   }
-  
-  // Yeni oda oluştur
-  const roomId = Math.random().toString(36).substring(7);
+  // Hiç uygun oda yoksa yeni oda oluştur
+  const newId = Math.random().toString(36).substring(2, 8).toUpperCase();
   const newRoom = {
-    id: roomId,
-    name: `Oda ${roomId}`,
+    id: newId,
+    name: `Oda ${newId}`,
     players: {},
     teamRed: [],
     teamBlue: [],
     redCount: 0,
     blueCount: 0,
-    created: Date.now()
+    map: 'backrooms'
   };
-  
-  rooms.set(roomId, newRoom);
+  rooms.set(newId, newRoom);
   return newRoom;
 }
 
 const PORT = process.env.PORT || 10000;
 server.listen(PORT, () => {
-  console.log(`🚀 Sunucu ${PORT} portunda çalışıyor`);
+  console.log(`🚀 Sunucu ${PORT} portunda çalışıyor, adres: https://saskioyunu-1-2d6i.onrender.com`);
 });
