@@ -11,245 +11,183 @@ pingTimeout: 60000,
 pingInterval: 25000
 });
 
-app.use(express.static(path.join(__dirname, ‘public’)));
-app.get(’/’, (req, res) => res.sendFile(path.join(__dirname, ‘public’, ‘index.html’)));
+// Statik dosyalar root klasöründen (index.html, game.js burada)
+app.use(express.static(path.join(__dirname)));
+app.get(’/’, (req, res) => res.sendFile(path.join(__dirname, ‘index.html’)));
 
 // ── Sabitler ──────────────────────────────────────────────────────────────
-const MAX_TEAM = 10;
 const MAX_PER_TEAM = 10;
-const TICK = 50; // ms
-const RESPAWN_TIME = 5000;
-const MAP_W = 2400, MAP_H = 2400;
+const TICK_MS      = 50;
+const RESPAWN_MS   = 5000;
+const MAP_W        = 3200;
+const MAP_H        = 3200;
 
 // ── Oda yönetimi ──────────────────────────────────────────────────────────
-const rooms = {};          // roomId -> room
-const playerRoom = {};     // socketId -> roomId
-const playerData = {};     // socketId -> player
+const rooms  = {};
+const pRoom  = {};
 
-function createRoom(id) {
-const room = {
-id,
-players: {},           // socketId -> player snapshot
-redTeam: [],
-blueTeam: [],
-bullets: [],
-started: false,
-tick: 0
-};
-rooms[id] = room;
-return room;
+function mkRoom(id) {
+rooms[id] = { id, players: {}, red: [], blue: [], bullets: [] };
+return rooms[id];
 }
+mkRoom(‘room_1’);
 
-function findOrCreateRoom() {
-for (const rid in rooms) {
-const r = rooms[rid];
-if (r.redTeam.length < MAX_PER_TEAM || r.blueTeam.length < MAX_PER_TEAM) return r;
+function findRoom() {
+for (const id in rooms) {
+const r = rooms[id];
+if (r.red.length < MAX_PER_TEAM || r.blue.length < MAX_PER_TEAM) return r;
 }
 const newId = ‘room_’ + Date.now();
-return createRoom(newId);
+return mkRoom(newId);
 }
 
-function assignTeam(room, socketId) {
-if (room.redTeam.length <= room.blueTeam.length && room.redTeam.length < MAX_PER_TEAM) {
-room.redTeam.push(socketId);
-return ‘red’;
-} else if (room.blueTeam.length < MAX_PER_TEAM) {
-room.blueTeam.push(socketId);
-return ‘blue’;
+function assignTeam(room, sid) {
+if (room.red.length <= room.blue.length && room.red.length < MAX_PER_TEAM) {
+room.red.push(sid); return ‘red’;
+} else if (room.blue.length < MAX_PER_TEAM) {
+room.blue.push(sid); return ‘blue’;
 }
 return null;
 }
 
-function removeFromRoom(socketId) {
-const rid = playerRoom[socketId];
+function leaveRoom(sid) {
+const rid = pRoom[sid];
 if (!rid || !rooms[rid]) return;
-const room = rooms[rid];
-room.redTeam = room.redTeam.filter(s => s !== socketId);
-room.blueTeam = room.blueTeam.filter(s => s !== socketId);
-delete room.players[socketId];
-delete playerRoom[socketId];
-if (room.redTeam.length === 0 && room.blueTeam.length === 0) {
-delete rooms[rid];
-}
+const r = rooms[rid];
+r.red  = r.red.filter(s => s !== sid);
+r.blue = r.blue.filter(s => s !== sid);
+delete r.players[sid];
+delete pRoom[sid];
+if (rid !== ‘room_1’ && r.red.length === 0 && r.blue.length === 0) delete rooms[rid];
 }
 
 // ── Spawn noktaları ───────────────────────────────────────────────────────
 const SPAWNS = {
-red:  [[200,200],[200,400],[400,200],[400,400],[200,600],[600,200],[600,400],[200,800],[800,200],[400,600]],
-blue: [[2200,2200],[2200,2000],[2000,2200],[2000,2000],[2200,1800],[1800,2200],[1800,2000],[2200,1600],[1600,2200],[2000,1800]]
+red:  [[200,200],[300,200],[400,200],[200,300],[300,300],[400,300],[200,400],[300,400],[500,200],[500,300]],
+blue: [[3000,3000],[2900,3000],[2800,3000],[3000,2900],[2900,2900],[2800,2900],[3000,2800],[2900,2800],[2700,3000],[2700,2900]]
 };
-
-function getSpawn(team, idx) {
-const arr = SPAWNS[team];
-return arr[idx % arr.length];
+function getSpawn(team, n) {
+const a = SPAWNS[team];
+return a[n % a.length];
 }
 
-// ── Oyun tick ─────────────────────────────────────────────────────────────
+// ── Game tick ─────────────────────────────────────────────────────────────
 setInterval(() => {
 for (const rid in rooms) {
 const room = rooms[rid];
-const allPlayers = Object.keys(room.players);
-if (allPlayers.length === 0) continue;
+const sids = Object.keys(room.players);
+if (!sids.length) continue;
 
 ```
-// Mermi hareketi & çarpışma
-const aliveBullets = [];
+const keep = [];
 for (const b of room.bullets) {
-  b.x += b.vx * (TICK / 1000) * 600;
-  b.y += b.vy * (TICK / 1000) * 600;
-  b.life -= TICK;
+  b.x += b.vx * (TICK_MS / 1000) * 600;
+  b.y += b.vy * (TICK_MS / 1000) * 600;
+  b.life -= TICK_MS;
   if (b.life <= 0 || b.x < 0 || b.x > MAP_W || b.y < 0 || b.y > MAP_H) continue;
 
   let hit = false;
-  for (const sid of allPlayers) {
+  for (const sid of sids) {
     const p = room.players[sid];
     if (!p || !p.alive || sid === b.owner || p.team === b.ownerTeam) continue;
     const dx = p.x - b.x, dy = p.y - b.y;
-    if (Math.sqrt(dx*dx + dy*dy) < 20) {
-      // Hasar hesabı
-      const dmg = b.bodyPart === 'head' ? 100 : b.bodyPart === 'feet' ? 20 : 35;
+    if (Math.sqrt(dx*dx+dy*dy) < 22) {
+      const dmg = b.part === 'head' ? 100 : b.part === 'feet' ? 20 : 35;
       p.hp = Math.max(0, p.hp - dmg);
-      io.to(rid).emit('playerHit', { target: sid, hp: p.hp, shooter: b.owner, dmg, part: b.bodyPart });
+      io.to(rid).emit('hit', { target: sid, hp: p.hp, shooter: b.owner, dmg, part: b.part });
       if (p.hp <= 0) {
         p.alive = false;
-        io.to(rid).emit('playerDied', { id: sid, killer: b.owner });
-        // Respawn
+        io.to(rid).emit('died', { id: sid, killer: b.owner });
         setTimeout(() => {
-          if (!room.players[sid]) return;
-          const spawnIdx = Math.floor(Math.random() * 10);
-          const [sx, sy] = getSpawn(p.team, spawnIdx);
-          p.hp = 100; p.alive = true; p.x = sx; p.y = sy;
-          io.to(sid).emit('respawn', { x: sx, y: sy, hp: 100 });
-        }, RESPAWN_TIME);
+          const pp = rooms[rid]?.players[sid];
+          if (!pp) return;
+          const [sx, sy] = getSpawn(pp.team, Math.floor(Math.random()*10));
+          pp.hp = 100; pp.alive = true; pp.x = sx; pp.y = sy;
+          io.to(sid).emit('respawn', { x: sx, y: sy });
+        }, RESPAWN_MS);
       }
-      hit = true;
-      break;
+      hit = true; break;
     }
   }
-  if (!hit) aliveBullets.push(b);
+  if (!hit) keep.push(b);
 }
-room.bullets = aliveBullets;
+room.bullets = keep;
 
-// State broadcast
-const state = {
-  players: room.players,
-  bullets: room.bullets,
-  ts: Date.now()
-};
-io.to(rid).emit('gameState', state);
+io.to(rid).emit('state', { players: room.players, bullets: room.bullets });
 ```
 
 }
-}, TICK);
+}, TICK_MS);
 
 // ── Socket bağlantıları ───────────────────────────────────────────────────
-io.on(‘connection’, (socket) => {
-console.log(‘Connect:’, socket.id);
+io.on(‘connection’, sock => {
+console.log(’+’, sock.id);
 
-socket.on(‘joinGame’, ({ name, telegramId }) => {
-const room = findOrCreateRoom();
-const team = assignTeam(room, socket.id);
-if (!team) { socket.emit(‘roomFull’); return; }
+sock.on(‘join’, ({ name }) => {
+const room = findRoom();
+const team = assignTeam(room, sock.id);
+if (!team) { sock.emit(‘full’); return; }
 
 ```
-const spawnIdx = Object.keys(room.players).length;
+const spawnIdx = room.red.length + room.blue.length - 1;
 const [sx, sy] = getSpawn(team, spawnIdx);
 
-const player = {
-  id: socket.id,
-  name: name || telegramId || 'Asker',
-  telegramId: telegramId || null,
-  team,
-  x: sx, y: sy,
-  angle: team === 'red' ? 0 : Math.PI,
-  hp: 100,
-  alive: true,
-  anim: 'idle',
-  kills: 0,
-  deaths: 0
-};
+const p = { id: sock.id, name, team, x: sx, y: sy, angle: 0, hp: 100, alive: true, anim: 'idle' };
+room.players[sock.id] = p;
+pRoom[sock.id] = room.id;
 
-room.players[socket.id] = player;
-playerRoom[socket.id] = room.id;
-playerData[socket.id] = player;
-
-socket.join(room.id);
-socket.emit('joined', {
-  roomId: room.id,
-  team,
-  playerId: socket.id,
-  spawnX: sx,
-  spawnY: sy,
-  mapW: MAP_W,
-  mapH: MAP_H
-});
-
-const roomInfo = {
-  id: room.id,
-  red: room.redTeam.length,
-  blue: room.blueTeam.length
-};
-io.to(room.id).emit('roomUpdate', roomInfo);
-io.to(room.id).emit('playerJoined', player);
+sock.join(room.id);
+sock.emit('joined', { roomId: room.id, team, id: sock.id, x: sx, y: sy, mapW: MAP_W, mapH: MAP_H });
+sock.to(room.id).emit('pJoin', p);
+sock.emit('allPlayers', Object.values(room.players).filter(pp => pp.id !== sock.id));
+io.to(room.id).emit('roomInfo', { red: room.red.length, blue: room.blue.length });
 ```
 
 });
 
-socket.on(‘playerMove’, (data) => {
-const rid = playerRoom[socket.id];
-if (!rid || !rooms[rid]) return;
-const p = rooms[rid].players[socket.id];
+sock.on(‘move’, d => {
+const r = rooms[pRoom[sock.id]];
+if (!r) return;
+const p = r.players[sock.id];
 if (!p || !p.alive) return;
-p.x = Math.max(0, Math.min(MAP_W, data.x));
-p.y = Math.max(0, Math.min(MAP_H, data.y));
-p.angle = data.angle;
-p.anim = data.anim || ‘idle’;
+p.x = d.x; p.y = d.y; p.angle = d.angle; p.anim = d.anim || ‘idle’;
 });
 
-socket.on(‘shoot’, (data) => {
-const rid = playerRoom[socket.id];
-if (!rid || !rooms[rid]) return;
-const p = rooms[rid].players[socket.id];
+sock.on(‘shoot’, d => {
+const r = rooms[pRoom[sock.id]];
+if (!r) return;
+const p = r.players[sock.id];
 if (!p || !p.alive) return;
-const bullet = {
-id: socket.id + ‘*’ + Date.now() + ’*’ + Math.random(),
-x: data.x, y: data.y,
-vx: data.vx, vy: data.vy,
-owner: socket.id,
-ownerTeam: p.team,
-bodyPart: data.bodyPart || ‘body’,
-life: 2000
-};
-rooms[rid].bullets.push(bullet);
-socket.to(rid).emit(‘bulletFired’, bullet);
+r.bullets.push({
+id: sock.id+’_’+Date.now(), x: d.x, y: d.y,
+vx: d.vx, vy: d.vy, owner: sock.id, ownerTeam: p.team,
+part: d.part || ‘body’, life: 2000
+});
 });
 
-socket.on(‘getRooms’, () => {
-const list = Object.values(rooms).map(r => ({
-id: r.id,
-red: r.redTeam.length,
-blue: r.blueTeam.length,
-total: r.redTeam.length + r.blueTeam.length
-}));
-socket.emit(‘roomsList’, list);
+sock.on(‘getRooms’, () => {
+sock.emit(‘roomsList’, Object.values(rooms).map(r => ({
+id: r.id, red: r.red.length, blue: r.blue.length
+})));
 });
 
-socket.on(‘disconnect’, () => {
-const rid = playerRoom[socket.id];
+sock.on(‘disconnect’, () => {
+const rid = pRoom[sock.id];
+const name = rooms[rid]?.players[sock.id]?.name || ‘’;
+leaveRoom(sock.id);
 if (rid) {
-io.to(rid).emit(‘playerLeft’, socket.id);
+io.to(rid).emit(‘pLeft’, sock.id);
+const r = rooms[rid];
+if (r) io.to(rid).emit(‘roomInfo’, { red: r.red.length, blue: r.blue.length });
 }
-removeFromRoom(socket.id);
-delete playerData[socket.id];
-console.log(‘Disconnect:’, socket.id);
+console.log(’-’, sock.id, name);
 });
 });
 
-// ── Keep-alive ping (Render uyku modunu engeller) ─────────────────────────
-const RENDER_URL = ‘https://saskioyunu-1-2d6i.onrender.com’;
+// ── Render uyku önleme ────────────────────────────────────────────────────
 setInterval(() => {
-http.get(RENDER_URL, () => {}).on(‘error’, () => {});
-}, 14 * 60 * 1000); // 14 dakikada bir
+require(‘http’).get(‘https://saskioyunu-1-2d6i.onrender.com’, () => {}).on(‘error’, () => {});
+}, 14 * 60 * 1000);
 
 const PORT = process.env.PORT || 3000;
-server.listen(PORT, () => console.log(`Sunucu çalışıyor: ${PORT}`));
+server.listen(PORT, () => console.log(‘Port:’, PORT));
