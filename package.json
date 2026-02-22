@@ -1,16 +1,11 @@
 {
-  "name": "savas-oyunu",
-  "version": "1.0.0",
-  "description": "Multiplayer FPS Savas Oyunu",
+  "name": "saski-fps",
+  "version": "3.0.0",
   "main": "server.js",
-  "scripts": {
-    "start": "node server.js"
-  },
+  "scripts": { "start": "node server.js" },
   "dependencies": {
-    "express": "4.18.2",
-    "socket.io": "4.7.2"
+    "express": "^4.18.2",
+    "socket.io": "^4.7.2"
   },
-  "engines": {
-    "node": "18.x"
-  }
+  "engines": { "node": ">=18.0.0" }
 }
