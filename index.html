@@ -1,557 +1,689 @@
 <!DOCTYPE html>
+
 <html lang="tr">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>SAŞKİ OYUNU - Profesyonel FPS</title>
-    <!-- Three.js ve Socket.IO -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-    <script src="https://cdn.socket.io/4.5.0/socket.io.min.js"></script>
-    <script src="https://telegram.org/js/telegram-web-app.js"></script>
-    <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; user-select: none; -webkit-tap-highlight-color: transparent; font-family: 'Segoe UI', system-ui, sans-serif; }
-        body { background: #0a0c10; color: white; overflow: hidden; width: 100vw; height: 100vh; }
-        
-        /* BEKLEME EKRANI (LOADING) */
-        #loadingScreen {
-            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-            background: linear-gradient(135deg, #1a1e2a, #0b0d15);
-            display: flex; flex-direction: column; justify-content: center; align-items: center;
-            z-index: 1000; transition: opacity 0.5s;
-        }
-        .spinner { width: 60px; height: 60px; border: 6px solid rgba(255,70,120,0.2); border-top-color: #ff4678; border-radius: 50%; animation: spin 0.8s linear infinite; margin-bottom: 25px; }
-        @keyframes spin { to { transform: rotate(360deg); } }
-        .loading-text { font-size: 22px; font-weight: 600; background: linear-gradient(45deg, #ff4678, #ff9f4a); -webkit-background-clip: text; -webkit-text-fill-color: transparent; letter-spacing: 2px; margin-bottom: 8px; }
-        .loading-sub { color: #8899bb; font-size: 14px; }
-        
-        /* ANA MENÜ */
-        #mainMenu {
-            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-            background: radial-gradient(circle at 20% 30%, #1e2a3a, #0e121c);
-            display: flex; flex-direction: column; padding: 30px 20px; overflow-y: auto;
-        }
-        .menu-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 40px; }
-        .menu-header h1 { font-size: 32px; font-weight: 800; background: linear-gradient(45deg, #ff4678, #ffbc3b); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
-        .user-badge { background: rgba(255,255,255,0.08); padding: 8px 16px; border-radius: 40px; display: flex; align-items: center; gap: 10px; border: 1px solid rgba(255,70,120,0.3); }
-        .user-badge img { width: 32px; height: 32px; border-radius: 50%; border: 2px solid #ff4678; }
-        
-        .menu-buttons { display: flex; flex-direction: column; gap: 16px; margin-bottom: 40px; }
-        .menu-btn { background: rgba(20,30,45,0.8); backdrop-filter: blur(8px); border: 1px solid rgba(255,255,255,0.1); padding: 18px; border-radius: 20px; color: white; font-size: 20px; font-weight: 600; display: flex; align-items: center; gap: 15px; cursor: pointer; transition: 0.2s; box-shadow: 0 8px 20px rgba(0,0,0,0.4); }
-        .menu-btn.primary { background: linear-gradient(145deg, #ff4678, #d42b5c); border: none; }
-        .menu-btn:active { transform: scale(0.98); }
-        .menu-btn .icon { font-size: 28px; }
-        
-        /* LOBI (ODA LİSTESİ) */
-        .section-title { font-size: 22px; margin-bottom: 20px; color: #ffbc3b; display: flex; align-items: center; gap: 10px; }
-        .rooms-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 30px; }
-        .room-card { background: rgba(20,30,45,0.6); backdrop-filter: blur(4px); border-radius: 20px; padding: 16px; border-left: 5px solid #ff4678; box-shadow: 0 5px 15px rgba(0,0,0,0.3); }
-        .room-card .room-name { font-weight: 700; font-size: 18px; margin-bottom: 5px; }
-        .room-card .room-players { display: flex; gap: 20px; margin: 12px 0; }
-        .team-badge.red { color: #ff6b6b; } .team-badge.blue { color: #6ba6ff; }
-        .join-btn { background: rgba(255,70,120,0.2); border: 1px solid #ff4678; padding: 8px; border-radius: 40px; width: 100%; color: white; font-weight: 600; cursor: pointer; }
-        
-        /* ODA OLUŞTURMA */
-        .create-room-panel { background: rgba(0,0,0,0.3); border-radius: 30px; padding: 25px; margin-top: 20px; }
-        .create-room-panel input, .create-room-panel select { width: 100%; padding: 16px; margin: 8px 0; background: rgba(0,0,0,0.4); border: 1px solid #334455; border-radius: 16px; color: white; font-size: 16px; }
-        .create-btn { width: 100%; padding: 18px; background: linear-gradient(145deg, #28c76f, #1f9f57); border: none; border-radius: 20px; color: white; font-weight: 700; font-size: 18px; margin-top: 15px; cursor: pointer; }
-        
-        .back-btn { background: transparent; border: 1px solid #556677; padding: 12px; border-radius: 40px; width: 100%; color: #aaccff; font-size: 16px; margin-top: 20px; cursor: pointer; }
-        
-        /* OYUN EKRANI (HUD) */
-        #gameScreen { width: 100vw; height: 100vh; position: relative; background: #000; }
-        #gameCanvas { width: 100%; height: 100%; display: block; }
-        .hud { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; }
-        .health-bar { position: absolute; top: 30px; left: 30px; width: 250px; height: 25px; background: #222; border-radius: 30px; border: 2px solid #fff; overflow: hidden; }
-        .health-fill { height: 100%; width: 100%; background: linear-gradient(90deg, #ff4678, #ff8c5a); transition: width 0.2s; }
-        .health-text { position: absolute; top: 30px; left: 300px; color: white; font-weight: 700; text-shadow: 2px 2px 0 black; }
-        
-        .team-hud { position: absolute; top: 80px; left: 30px; display: flex; gap: 30px; background: rgba(0,0,0,0.6); padding: 12px 25px; border-radius: 50px; backdrop-filter: blur(4px); border: 1px solid #445566; }
-        .team-red { color: #ff6b6b; font-weight: 800; } .team-blue { color: #6ba6ff; font-weight: 800; }
-        
-        .kill-feed { position: absolute; top: 80px; right: 30px; width: 280px; display: flex; flex-direction: column; gap: 6px; }
-        .kill-item { background: rgba(0,0,0,0.8); padding: 8px 15px; border-radius: 40px; border-left: 4px solid #ff4678; font-size: 14px; backdrop-filter: blur(2px); animation: slideIn 0.3s; }
-        @keyframes slideIn { from { opacity: 0; transform: translateX(30px); } to { opacity: 1; transform: translateX(0); } }
-        
-        .joystick-left { position: absolute; bottom: 40px; left: 40px; width: 100px; height: 100px; background: rgba(255,255,255,0.15); border-radius: 50%; border: 2px solid rgba(255,255,255,0.3); backdrop-filter: blur(8px); pointer-events: auto; }
-        .joystick-right { position: absolute; bottom: 40px; right: 120px; width: 100px; height: 100px; background: rgba(255,255,255,0.15); border-radius: 50%; border: 2px solid rgba(255,70,120,0.5); backdrop-filter: blur(8px); pointer-events: auto; }
-        .fire-btn { position: absolute; bottom: 40px; right: 40px; width: 70px; height: 70px; background: #ff4678; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 32px; border: 3px solid white; pointer-events: auto; cursor: pointer; box-shadow: 0 0 20px #ff4678; }
-        .jump-btn { position: absolute; bottom: 130px; right: 40px; width: 60px; height: 60px; background: rgba(0,0,0,0.6); border-radius: 50%; border: 2px solid white; display: flex; align-items: center; justify-content: center; font-size: 26px; pointer-events: auto; cursor: pointer; }
-    </style>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, maximum-scale=1.0"/>
+<meta name="theme-color" content="#1a1a2e"/>
+<title>SAVAŞ OYUNU</title>
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<style>
+  /* ── Reset & Base ─────────────────────────────────────────────────── */
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body {
+    width: 100%; height: 100%;
+    overflow: hidden;
+    background: #0d0d1a;
+    font-family: 'Segoe UI', Arial, sans-serif;
+    color: #fff;
+    user-select: none;
+    -webkit-user-select: none;
+    touch-action: none;
+  }
+
+/* ── Ekranlar ─────────────────────────────────────────────────────── */
+.screen {
+position: fixed; inset: 0;
+display: none;
+flex-direction: column;
+align-items: center;
+justify-content: center;
+z-index: 10;
+}
+.screen.active { display: flex; }
+
+/* ── Ana Menü ─────────────────────────────────────────────────────── */
+#main-menu {
+background: radial-gradient(ellipse at center, #1a1a3e 0%, #0d0d1a 70%);
+}
+.menu-logo {
+font-size: clamp(28px, 8vw, 56px);
+font-weight: 900;
+letter-spacing: 4px;
+text-transform: uppercase;
+background: linear-gradient(135deg, #e74c3c, #f39c12, #e74c3c);
+-webkit-background-clip: text;
+-webkit-text-fill-color: transparent;
+background-clip: text;
+text-shadow: none;
+margin-bottom: 8px;
+filter: drop-shadow(0 0 20px rgba(231,76,60,0.5));
+}
+.menu-subtitle {
+font-size: clamp(12px, 3vw, 16px);
+color: #a0a0c0;
+letter-spacing: 6px;
+text-transform: uppercase;
+margin-bottom: 40px;
+}
+.player-badge {
+background: rgba(255,255,255,0.07);
+border: 1px solid rgba(255,255,255,0.15);
+border-radius: 12px;
+padding: 12px 24px;
+margin-bottom: 32px;
+text-align: center;
+backdrop-filter: blur(10px);
+}
+.player-badge .tg-name { font-size: 18px; font-weight: 700; color: #FFD700; }
+.player-badge .tg-id { font-size: 12px; color: #888; margin-top: 2px; }
+.name-row {
+display: flex; gap: 10px; margin-bottom: 28px;
+}
+.name-input {
+padding: 12px 18px;
+border-radius: 10px;
+border: 2px solid rgba(255,255,255,0.2);
+background: rgba(255,255,255,0.07);
+color: #fff;
+font-size: 16px;
+outline: none;
+width: 220px;
+transition: border 0.2s;
+}
+.name-input:focus { border-color: #e74c3c; }
+.name-input::placeholder { color: #666; }
+.name-input:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.menu-btns { display: flex; flex-direction: column; gap: 14px; width: 280px; }
+
+.menu-btn {
+padding: 16px 32px;
+border-radius: 14px;
+border: none;
+font-size: 17px;
+font-weight: 800;
+letter-spacing: 2px;
+text-transform: uppercase;
+cursor: pointer;
+transition: transform 0.1s, box-shadow 0.2s, filter 0.2s;
+position: relative;
+overflow: hidden;
+}
+.menu-btn::after {
+content: ‘’;
+position: absolute;
+inset: 0;
+background: linear-gradient(180deg, rgba(255,255,255,0.15) 0%, transparent 100%);
+pointer-events: none;
+}
+.menu-btn:active { transform: scale(0.96); }
+
+.btn-primary {
+background: linear-gradient(135deg, #e74c3c, #c0392b);
+color: #fff;
+box-shadow: 0 6px 24px rgba(231,76,60,0.45);
+}
+.btn-primary:active { box-shadow: 0 2px 8px rgba(231,76,60,0.3); }
+.btn-secondary {
+background: linear-gradient(135deg, #2980b9, #1a5276);
+color: #fff;
+box-shadow: 0 6px 24px rgba(41,128,185,0.4);
+}
+.btn-outline {
+background: transparent;
+color: #a0a0c0;
+border: 2px solid rgba(255,255,255,0.2);
+box-shadow: none;
+}
+.btn-outline:hover { border-color: rgba(255,255,255,0.4); color: #fff; }
+
+.menu-stats {
+margin-top: 30px;
+display: flex; gap: 24px;
+font-size: 12px;
+color: #555;
+}
+.menu-stats span { display: flex; align-items: center; gap: 4px; }
+
+/* ── Odalar Ekranı ────────────────────────────────────────────────── */
+#rooms-screen, #create-screen {
+background: rgba(13,13,26,0.97);
+padding: 24px;
+overflow-y: auto;
+}
+.screen-header {
+width: 100%; max-width: 600px;
+display: flex; align-items: center; gap: 16px;
+margin-bottom: 24px;
+}
+.screen-title { font-size: 22px; font-weight: 800; flex: 1; }
+.back-btn {
+background: rgba(255,255,255,0.08);
+border: 1px solid rgba(255,255,255,0.15);
+color: #fff;
+padding: 8px 18px;
+border-radius: 8px;
+cursor: pointer;
+font-size: 14px;
+transition: background 0.2s;
+}
+.back-btn:hover { background: rgba(255,255,255,0.15); }
+
+#rooms-list {
+width: 100%; max-width: 600px;
+display: flex; flex-direction: column; gap: 10px;
+}
+.room-item {
+background: rgba(255,255,255,0.06);
+border: 1px solid rgba(255,255,255,0.1);
+border-radius: 12px;
+padding: 14px 18px;
+display: flex; align-items: center; justify-content: space-between;
+transition: background 0.2s;
+}
+.room-item:hover { background: rgba(255,255,255,0.1); }
+.room-info { display: flex; flex-direction: column; gap: 4px; }
+.room-name { font-weight: 700; font-size: 14px; }
+.room-teams { font-size: 13px; color: #a0a0c0; }
+.room-join-btn {
+background: linear-gradient(135deg, #e74c3c, #c0392b);
+color: #fff;
+border: none;
+padding: 10px 20px;
+border-radius: 8px;
+font-weight: 700;
+cursor: pointer;
+font-size: 13px;
+transition: transform 0.1s;
+}
+.room-join-btn:disabled { background: #444; cursor: not-allowed; }
+.room-join-btn:not(:disabled):active { transform: scale(0.95); }
+.no-rooms { color: #555; font-size: 15px; text-align: center; padding: 40px; }
+
+/* ── Oda Oluştur Ekranı ──────────────────────────────────────────── */
+.create-form {
+width: 100%; max-width: 400px;
+display: flex; flex-direction: column; gap: 16px;
+}
+.form-group { display: flex; flex-direction: column; gap: 6px; }
+.form-label { font-size: 13px; color: #a0a0c0; font-weight: 600; }
+.form-select {
+padding: 12px 16px;
+background: rgba(255,255,255,0.07);
+border: 1px solid rgba(255,255,255,0.15);
+border-radius: 10px;
+color: #fff;
+font-size: 15px;
+}
+
+/* ── Oyun Ekranı ──────────────────────────────────────────────────── */
+#game-screen { background: #000; }
+#game-canvas {
+position: absolute; inset: 0;
+width: 100%; height: 100%;
+display: block;
+}
+
+/* ── HUD ──────────────────────────────────────────────────────────── */
+#hud {
+position: absolute; inset: 0;
+pointer-events: none;
+z-index: 20;
+}
+
+/* Can barı */
+#hp-container {
+position: absolute;
+left: 50%; transform: translateX(-50%);
+bottom: 130px;
+display: flex; flex-direction: column; align-items: center; gap: 4px;
+pointer-events: none;
+}
+#hp-bar {
+width: 180px; height: 10px;
+background: rgba(0,0,0,0.5);
+border-radius: 5px;
+overflow: hidden;
+border: 1px solid rgba(255,255,255,0.2);
+}
+#hp-bar-inner {
+height: 100%;
+background: #2ecc71;
+border-radius: 5px;
+width: 100%;
+transition: width 0.3s, background-color 0.3s;
+}
+#hp-text {
+font-size: 13px;
+font-weight: 700;
+color: #fff;
+text-shadow: 1px 1px 3px #000;
+}
+
+/* Üst bilgi */
+#top-hud {
+position: absolute;
+top: 0; left: 0; right: 0;
+display: flex; justify-content: space-between; align-items: flex-start;
+padding: 10px 14px;
+pointer-events: none;
+}
+.hud-pill {
+background: rgba(0,0,0,0.55);
+border: 1px solid rgba(255,255,255,0.12);
+border-radius: 8px;
+padding: 6px 12px;
+font-size: 13px;
+font-weight: 700;
+display: flex; flex-direction: column; gap: 2px;
+backdrop-filter: blur(4px);
+}
+#team-label { font-size: 15px; font-weight: 900; }
+#room-label { font-size: 11px; color: #aaa; }
+#conn-status { font-size: 11px; }
+.kd-box { text-align: right; }
+.kd-box span { font-size: 11px; color: #aaa; display: block; }
+.kd-box .kd-val { font-size: 16px; font-weight: 900; color: #FFD700; }
+
+/* Hasar popup */
+#damage-popup {
+position: absolute;
+top: 40%; left: 50%;
+transform: translate(-50%, -50%) scale(0);
+font-size: 28px;
+font-weight: 900;
+color: #e74c3c;
+text-shadow: 0 0 10px rgba(231,76,60,0.8), 2px 2px 0 #000;
+pointer-events: none;
+transition: transform 0.1s, opacity 0.4s;
+opacity: 0;
+z-index: 30;
+}
+#damage-popup.show {
+transform: translate(-50%, -50%) scale(1);
+opacity: 1;
+animation: dmgPop 0.8s ease forwards;
+}
+@keyframes dmgPop {
+0%   { transform: translate(-50%, -70%) scale(1.3); opacity: 1; }
+100% { transform: translate(-50%, -100%) scale(0.8); opacity: 0; }
+}
+
+/* Bildirim */
+#notif {
+position: absolute;
+top: 80px; left: 50%;
+transform: translateX(-50%) translateY(-20px);
+background: rgba(0,0,0,0.75);
+border: 1px solid rgba(255,255,255,0.15);
+border-radius: 10px;
+padding: 10px 20px;
+font-size: 14px;
+font-weight: 700;
+opacity: 0;
+transition: opacity 0.3s, transform 0.3s;
+pointer-events: none;
+z-index: 30;
+backdrop-filter: blur(4px);
+white-space: nowrap;
+}
+#notif.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+#notif.red { color: #e74c3c; border-color: rgba(231,76,60,0.4); }
+#notif.green { color: #2ecc71; border-color: rgba(46,204,113,0.4); }
+#notif.blue { color: #3498db; border-color: rgba(52,152,219,0.4); }
+
+/* Minimap */
+#minimap {
+position: absolute;
+top: 14px; right: 14px;
+width: 130px; height: 130px;
+border-radius: 10px;
+border: 2px solid rgba(255,255,255,0.2);
+background: rgba(0,0,0,0.4);
+pointer-events: none;
+z-index: 25;
+image-rendering: pixelated;
+}
+#minimap-label {
+position: absolute;
+top: 150px; right: 14px;
+font-size: 10px;
+color: rgba(255,255,255,0.5);
+pointer-events: none;
+z-index: 25;
+text-align: right;
+}
+
+/* ── Mobil Kontroller ─────────────────────────────────────────────── */
+#mobile-controls {
+position: absolute;
+bottom: 0; left: 0; right: 0;
+height: 180px;
+display: flex;
+align-items: center;
+justify-content: space-between;
+padding: 10px 20px 20px;
+pointer-events: none;
+z-index: 50;
+}
+
+/* Sol joystick */
+#joystick {
+width: 110px; height: 110px;
+background: rgba(255,255,255,0.08);
+border: 2px solid rgba(255,255,255,0.2);
+border-radius: 50%;
+position: relative;
+pointer-events: all;
+flex-shrink: 0;
+backdrop-filter: blur(2px);
+}
+#joystick-knob {
+width: 46px; height: 46px;
+background: rgba(255,255,255,0.35);
+border: 2px solid rgba(255,255,255,0.5);
+border-radius: 50%;
+position: absolute;
+top: 50%; left: 50%;
+transform: translate(-50%, -50%);
+transition: transform 0.05s;
+box-shadow: 0 0 12px rgba(255,255,255,0.2);
+}
+
+/* Orta butonlar */
+#center-btns {
+display: flex;
+flex-direction: column;
+align-items: center;
+gap: 10px;
+pointer-events: all;
+}
+#jump-btn {
+width: 64px; height: 64px;
+background: rgba(46,204,113,0.25);
+border: 2px solid rgba(46,204,113,0.5);
+border-radius: 50%;
+font-size: 22px;
+color: #fff;
+cursor: pointer;
+display: flex; align-items: center; justify-content: center;
+font-weight: 900;
+transition: transform 0.1s, background 0.1s;
+backdrop-filter: blur(2px);
+}
+#jump-btn:active { transform: scale(0.9); background: rgba(46,204,113,0.5); }
+
+/* Aim joystick (sağ orta) */
+#aim-joystick {
+width: 90px; height: 90px;
+background: rgba(255,165,0,0.08);
+border: 2px solid rgba(255,165,0,0.25);
+border-radius: 50%;
+position: relative;
+pointer-events: all;
+flex-shrink: 0;
+backdrop-filter: blur(2px);
+}
+#aim-knob {
+width: 36px; height: 36px;
+background: rgba(255,165,0,0.35);
+border: 2px solid rgba(255,165,0,0.6);
+border-radius: 50%;
+position: absolute;
+top: 50%; left: 50%;
+transform: translate(-50%, -50%);
+transition: transform 0.05s;
+}
+
+/* Ateş butonu */
+#shoot-btn {
+width: 80px; height: 80px;
+background: radial-gradient(circle, rgba(231,76,60,0.6), rgba(192,57,43,0.8));
+border: 3px solid rgba(231,76,60,0.8);
+border-radius: 50%;
+font-size: 26px;
+color: #fff;
+cursor: pointer;
+display: flex; align-items: center; justify-content: center;
+font-weight: 900;
+transition: transform 0.08s, box-shadow 0.08s;
+pointer-events: all;
+flex-shrink: 0;
+box-shadow: 0 0 20px rgba(231,76,60,0.4);
+backdrop-filter: blur(2px);
+}
+#shoot-btn:active { transform: scale(0.88); box-shadow: 0 0 8px rgba(231,76,60,0.3); }
+
+/* Kontrol etiketleri */
+.ctrl-label {
+font-size: 9px;
+color: rgba(255,255,255,0.4);
+text-align: center;
+margin-top: 2px;
+}
+
+/* ── Klavye ipucu ─────────────────────────────────────────────────── */
+#keyboard-hint {
+position: absolute;
+bottom: 14px; left: 50%;
+transform: translateX(-50%);
+font-size: 11px;
+color: rgba(255,255,255,0.3);
+pointer-events: none;
+z-index: 20;
+white-space: nowrap;
+}
+
+/* ── Responsive: mobil göster, masaüstü gizle ─────────────────────── */
+@media (hover: hover) and (pointer: fine) {
+#mobile-controls { display: none; }
+#keyboard-hint { display: block; }
+#hp-container { bottom: 20px; }
+}
+@media (hover: none) or (pointer: coarse) {
+#keyboard-hint { display: none; }
+}
+
+/* ── Loading ──────────────────────────────────────────────────────── */
+#loading-overlay {
+position: fixed; inset: 0;
+background: #0d0d1a;
+display: flex; flex-direction: column;
+align-items: center; justify-content: center;
+z-index: 999;
+gap: 16px;
+}
+.loader-ring {
+width: 60px; height: 60px;
+border-radius: 50%;
+border: 4px solid rgba(231,76,60,0.2);
+border-top-color: #e74c3c;
+animation: spin 1s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+.loader-text { color: #a0a0c0; font-size: 14px; }
+
+/* ── Utility ──────────────────────────────────────────────────────── */
+.divider {
+width: 100%; max-width: 280px;
+height: 1px;
+background: rgba(255,255,255,0.08);
+margin: 4px 0;
+}
+</style>
+
 </head>
 <body>
-    <!-- BEKLEME EKRANI -->
-    <div id="loadingScreen">
-        <div class="spinner"></div>
-        <div class="loading-text">SAŞKİ OYUNU</div>
-        <div class="loading-sub" id="loadingStatus">Sunucuya bağlanıyor...</div>
+
+<!-- Loading -->
+
+<div id="loading-overlay">
+  <div class="loader-ring"></div>
+  <div class="loader-text">Sunucuya bağlanıyor...</div>
+</div>
+
+<!-- ── ANA MENÜ ────────────────────────────────────────────────────────── -->
+
+<div id="main-menu" class="screen">
+  <div class="menu-logo">⚔️ SAVAS</div>
+  <div class="menu-subtitle">Tactical FPS · Battle Arena</div>
+
+  <div class="player-badge">
+    <div class="tg-name" id="player-name-display">Misafir Asker</div>
+    <div class="tg-id" id="player-id-display">Telegram bağlı değil</div>
+  </div>
+
+  <div class="name-row">
+    <input class="name-input" id="name-input" type="text" maxlength="16" placeholder="Kullanıcı adı..."/>
+  </div>
+
+  <div class="menu-btns">
+    <button class="menu-btn btn-primary" id="btn-find-game">🎮 OYUN BUL</button>
+    <div class="divider"></div>
+    <button class="menu-btn btn-secondary" id="btn-rooms">🏠 ODALAR</button>
+    <button class="menu-btn btn-outline" id="btn-create-room">➕ ODA OLUŞTUR</button>
+  </div>
+
+  <div class="menu-stats">
+    <span>🔴 Kırmızı Takım</span>
+    <span>VS</span>
+    <span>🔵 Mavi Takım</span>
+  </div>
+</div>
+
+<!-- ── ODALAR ─────────────────────────────────────────────────────────── -->
+
+<div id="rooms-screen" class="screen">
+  <div class="screen-header">
+    <button class="back-btn" id="btn-back-rooms">← Geri</button>
+    <div class="screen-title">🏠 Odalar</div>
+    <button class="back-btn" onclick="socket.emit('getRooms')">🔄</button>
+  </div>
+  <div id="rooms-list">
+    <div class="no-rooms">Yükleniyor...</div>
+  </div>
+</div>
+
+<!-- ── ODA OLUŞTUR ─────────────────────────────────────────────────────── -->
+
+<div id="create-screen" class="screen">
+  <div class="screen-header">
+    <button class="back-btn" id="btn-back-create">← Geri</button>
+    <div class="screen-title">➕ Oda Oluştur</div>
+  </div>
+  <div class="create-form">
+    <div class="form-group">
+      <div class="form-label">Takım boyutu</div>
+      <select class="form-select" id="team-size">
+        <option value="5">5v5</option>
+        <option value="10" selected>10v10</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <div class="form-label">Mod</div>
+      <select class="form-select" id="game-mode">
+        <option value="dm">Deathmatch</option>
+        <option value="team">Takım Savaşı</option>
+      </select>
+    </div>
+    <button class="menu-btn btn-primary" id="btn-create-room-screen" style="margin-top:12px">OLUŞTUR & GİR</button>
+  </div>
+</div>
+
+<!-- ── OYUN ───────────────────────────────────────────────────────────── -->
+
+<div id="game-screen" class="screen">
+  <canvas id="game-canvas"></canvas>
+  <canvas id="minimap" width="130" height="130"></canvas>
+  <div id="minimap-label">HARİTA</div>
+
+  <!-- HUD -->
+
+  <div id="hud">
+    <!-- Üst -->
+    <div id="top-hud">
+      <div class="hud-pill">
+        <span id="team-label">🔴 KIRMIZI</span>
+        <span id="room-label">Bağlanıyor...</span>
+        <span id="conn-status">🟡 Bağlanıyor</span>
+      </div>
+      <div class="hud-pill kd-box">
+        <span>Öldürme / Ölüm</span>
+        <span><span id="kills-val" class="kd-val">0</span> / <span id="deaths-val">0</span></span>
+      </div>
     </div>
 
-    <!-- ANA MENÜ (LOBİ) -->
-    <div id="mainMenu" style="display: none;">
-        <div class="menu-header">
-            <h1>🔫 SAŞKİ</h1>
-            <div class="user-badge" id="userBadge">
-                <span id="menuUsername">Yükleniyor...</span>
-                <img id="userAvatar" src="" alt="Avatar">
-            </div>
-        </div>
+```
+<!-- Can barı -->
+<div id="hp-container">
+  <div id="hp-bar">
+    <div id="hp-bar-inner"></div>
+  </div>
+  <div id="hp-text">❤️ <span id="hp-val">100</span></div>
+</div>
 
-        <div class="menu-buttons">
-            <button class="menu-btn primary" onclick="quickPlay()"><span class="icon">⚡</span> HIZLI OYUN</button>
-            <button class="menu-btn" onclick="showRooms()"><span class="icon">📋</span> ODALAR</button>
-            <button class="menu-btn" onclick="showCreateRoom()"><span class="icon">➕</span> ODA OLUŞTUR</button>
-        </div>
+<!-- Damage popup -->
+<div id="damage-popup"></div>
 
-        <!-- Odalar Listesi (gizli) -->
-        <div id="roomsPanel" style="display: none;">
-            <div class="section-title"><span>📋</span> AKTİF ODALAR</div>
-            <div id="roomsContainer" class="rooms-grid"></div>
-            <button class="back-btn" onclick="hideRooms()">← Geri</button>
-        </div>
+<!-- Bildirim -->
+<div id="notif"></div>
 
-        <!-- Oda Oluşturma Paneli (gizli) -->
-        <div id="createRoomPanel" style="display: none;">
-            <div class="section-title"><span>⚙️</span> ODA OLUŞTUR</div>
-            <div class="create-room-panel">
-                <input type="text" id="roomNameInput" placeholder="Oda adı (opsiyonel)">
-                <select id="mapSelect">
-                    <option value="backrooms">Backrooms (Labirent)</option>
-                    <option value="warehouse">Depo Arenası</option>
-                </select>
-                <button class="create-btn" onclick="createRoom()">ODA OLUŞTUR</button>
-            </div>
-            <button class="back-btn" onclick="hideCreateRoom()">← Geri</button>
-        </div>
+<!-- Klavye ipucu -->
+<div id="keyboard-hint">WASD: Hareket &nbsp;|&nbsp; Mouse: Nişan &nbsp;|&nbsp; Sol Tık: Ateş &nbsp;|&nbsp; SPACE: Zıpla</div>
+```
+
+  </div>
+
+  <!-- Mobil Kontroller -->
+
+  <div id="mobile-controls">
+    <!-- Sol: Hareket Joystick -->
+    <div style="display:flex;flex-direction:column;align-items:center;gap:2px">
+      <div id="joystick">
+        <div id="joystick-knob"></div>
+      </div>
+      <div class="ctrl-label">HAREKET</div>
     </div>
 
-    <!-- OYUN EKRANI -->
-    <div id="gameScreen" style="display: none;">
-        <canvas id="gameCanvas"></canvas>
-        <div class="hud">
-            <div class="health-bar"><div class="health-fill" id="healthFill"></div></div>
-            <div class="health-text" id="healthText">100</div>
-            
-            <div class="team-hud">
-                <span class="team-red">🔴 <span id="redCount">0</span></span>
-                <span class="team-blue">🔵 <span id="blueCount">0</span></span>
-            </div>
-            
-            <div class="kill-feed" id="killFeed"></div>
-            
-            <!-- Mobil kontroller -->
-            <div class="joystick-left" id="moveJoystick"></div>
-            <div class="joystick-right" id="lookJoystick"></div>
-            <div class="fire-btn" id="fireBtn" ontouchstart="isFiring=true" ontouchend="isFiring=false">🔫</div>
-            <div class="jump-btn" id="jumpBtn" onclick="if(game) game.jump()">🦘</div>
-        </div>
-    </div>
+```
+<!-- Orta: Zıpla -->
+<div id="center-btns">
+  <div style="display:flex;flex-direction:column;align-items:center;gap:2px">
+    <div id="jump-btn">↑</div>
+    <div class="ctrl-label">ZIPLA</div>
+  </div>
+</div>
 
-    <script>
-        // --------------------------------------------------------------
-        // ANA DEĞİŞKENLER
-        // --------------------------------------------------------------
-        const tg = Telegram.WebApp;
-        tg.expand();
-        
-        let socket = null;
-        let game = null;
-        let userData = null;
-        let currentRoomId = null;
-        let players = {};
-        let myPlayer = null;
-        let isFiring = false;
+<!-- Sağ orta: Aim -->
+<div style="display:flex;flex-direction:column;align-items:center;gap:2px">
+  <div id="aim-joystick">
+    <div id="aim-knob"></div>
+  </div>
+  <div class="ctrl-label">NİŞAN + ATEŞ</div>
+</div>
 
-        // --------------------------------------------------------------
-        // TELEGRAM KULLANICI BİLGİLERİ
-        // --------------------------------------------------------------
-        if (tg.initDataUnsafe.user) {
-            userData = tg.initDataUnsafe.user;
-            document.getElementById('menuUsername').innerText = userData.username || userData.first_name;
-            if (userData.photo_url) {
-                document.getElementById('userAvatar').src = userData.photo_url;
-            }
-        }
+<!-- Sağ: Ateş -->
+<div style="display:flex;flex-direction:column;align-items:center;gap:2px">
+  <div id="shoot-btn">🔫</div>
+  <div class="ctrl-label">ATEŞ</div>
+</div>
+```
 
-        // --------------------------------------------------------------
-        // SUNUCUYA BAĞLANMA
-        // --------------------------------------------------------------
-        function connectServer() {
-            document.getElementById('loadingStatus').innerText = 'Sunucuya bağlanıyor...';
-            
-            socket = io('https://saskioyunu-1-2d6i.onrender.com', {
-                reconnection: true,
-                reconnectionAttempts: Infinity,
-                reconnectionDelay: 1000,
-                timeout: 10000
-            });
+  </div>
+</div>
 
-            socket.on('connect', () => {
-                console.log('✅ Sunucuya bağlandı, ID:', socket.id);
-                document.getElementById('loadingScreen').style.opacity = '0';
-                setTimeout(() => {
-                    document.getElementById('loadingScreen').style.display = 'none';
-                    document.getElementById('mainMenu').style.display = 'flex';
-                }, 500);
-            });
+<!-- Socket.IO -->
 
-            socket.on('connect_error', (err) => {
-                document.getElementById('loadingStatus').innerHTML = '⚠️ Sunucuya bağlanılamadı, yeniden deneniyor...<br><small>' + err.message + '</small>';
-                console.log('Bağlantı hatası:', err);
-            });
+<script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.2/socket.io.min.js"></script>
 
-            socket.on('disconnect', () => {
-                document.getElementById('loadingScreen').style.display = 'flex';
-                document.getElementById('loadingScreen').style.opacity = '1';
-                document.getElementById('loadingStatus').innerText = 'Bağlantı koptu, yeniden bağlanıyor...';
-            });
+<!-- Oyun scripti -->
 
-            // Oyun içi socket olayları aşağıda tanımlanacak (game.js içinde)
-        }
+<script src="game.js"></script>
 
-        // --------------------------------------------------------------
-        // MENÜ FONKSİYONLARI
-        // --------------------------------------------------------------
-        window.quickPlay = function() {
-            joinRoom(null); // rastgele oda
-        };
+<script>
+  // Loading overlay kaldır (socket bağlandıktan sonra)
+  window.addEventListener('DOMContentLoaded', () => {
+    setTimeout(() => {
+      const ov = document.getElementById('loading-overlay');
+      if (ov) { ov.style.opacity = '0'; ov.style.transition = 'opacity 0.5s'; setTimeout(() => ov.remove(), 500); }
+      document.getElementById('main-menu').classList.add('active');
+    }, 1200);
+  });
 
-        window.showRooms = function() {
-            document.getElementById('roomsPanel').style.display = 'block';
-            document.getElementById('createRoomPanel').style.display = 'none';
-            fetchRooms();
-        };
+  // Sağ tık engelle
+  document.addEventListener('contextmenu', e => e.preventDefault());
+</script>
 
-        window.hideRooms = function() {
-            document.getElementById('roomsPanel').style.display = 'none';
-        };
-
-        window.showCreateRoom = function() {
-            document.getElementById('createRoomPanel').style.display = 'block';
-            document.getElementById('roomsPanel').style.display = 'none';
-        };
-
-        window.hideCreateRoom = function() {
-            document.getElementById('createRoomPanel').style.display = 'none';
-        };
-
-        async function fetchRooms() {
-            try {
-                const res = await fetch('https://saskioyunu-1-2d6i.onrender.com/api/rooms');
-                const rooms = await res.json();
-                const container = document.getElementById('roomsContainer');
-                if (rooms.length === 0) {
-                    container.innerHTML = '<div style="text-align:center;padding:30px;background:#1a2635;border-radius:30px;">Henüz oda yok, bir tane oluşturun!</div>';
-                    return;
-                }
-                container.innerHTML = rooms.map(r => `
-                    <div class="room-card">
-                        <div class="room-name">${r.name}</div>
-                        <div class="room-players">
-                            <span class="team-badge red">🔴 ${r.redCount}</span>
-                            <span class="team-badge blue">🔵 ${r.blueCount}</span>
-                        </div>
-                        <button class="join-btn" onclick="joinRoom('${r.id}')">KATIL</button>
-                    </div>
-                `).join('');
-            } catch (e) {
-                alert('Odalar alınamadı: ' + e.message);
-            }
-        }
-
-        window.createRoom = function() {
-            const name = document.getElementById('roomNameInput').value;
-            const map = document.getElementById('mapSelect').value;
-            fetch('https://saskioyunu-1-2d6i.onrender.com/api/rooms/create', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ name, map })
-            })
-            .then(res => res.json())
-            .then(data => {
-                joinRoom(data.id);
-            });
-        };
-
-        window.joinRoom = function(roomId) {
-            document.getElementById('mainMenu').style.display = 'none';
-            document.getElementById('gameScreen').style.display = 'block';
-            currentRoomId = roomId;
-
-            // Oyun motorunu başlat (eğer yoksa)
-            if (!game) {
-                initGame();
-            }
-
-            // Sunucuya katılma isteği gönder
-            socket.emit('joinRoom', {
-                username: userData?.username || 'Oyuncu',
-                telegramId: userData?.id || 'guest_' + Math.random(),
-                roomId: roomId
-            });
-        };
-
-        // --------------------------------------------------------------
-        // OYUN MOTORU (Three.js)
-        // --------------------------------------------------------------
-        function initGame() {
-            game = new GameEngine();
-        }
-
-        class GameEngine {
-            constructor() {
-                this.scene = new THREE.Scene();
-                this.scene.background = new THREE.Color(0x11151f);
-                
-                this.camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
-                this.renderer = new THREE.WebGLRenderer({ canvas: document.getElementById('gameCanvas'), antialias: true });
-                this.renderer.setSize(window.innerWidth, window.innerHeight);
-                this.renderer.shadowMap.enabled = true;
-                this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-                
-                // Işıklar
-                const ambient = new THREE.AmbientLight(0x404060);
-                this.scene.add(ambient);
-                
-                const dirLight = new THREE.DirectionalLight(0xffeedd, 1.2);
-                dirLight.position.set(5, 20, 10);
-                dirLight.castShadow = true;
-                dirLight.shadow.mapSize.width = 1024;
-                dirLight.shadow.mapSize.height = 1024;
-                this.scene.add(dirLight);
-                
-                // HARİTA (Backrooms)
-                this.createMap();
-                
-                // Diğer oyuncuları tutacak map
-                this.playerMeshes = new Map(); // id -> mesh
-                
-                // Animasyon döngüsü
-                this.animate();
-                
-                // Socket olaylarını dinle
-                this.setupSocketEvents();
-            }
-
-            createMap() {
-                // Zemin (gri beton)
-                const floorGeo = new THREE.PlaneGeometry(60, 60);
-                const floorMat = new THREE.MeshStandardMaterial({ color: 0xaaaaaa, roughness: 0.7, metalness: 0.1 });
-                const floor = new THREE.Mesh(floorGeo, floorMat);
-                floor.rotation.x = -Math.PI / 2;
-                floor.position.y = 0;
-                floor.receiveShadow = true;
-                this.scene.add(floor);
-
-                // Grid deseni (isteğe bağlı)
-                const grid = new THREE.GridHelper(60, 30, 0xffaa88, 0x445566);
-                grid.position.y = 0.01;
-                this.scene.add(grid);
-
-                // Duvarlar (sarı backrooms tarzı)
-                const wallMat = new THREE.MeshStandardMaterial({ color: 0xeedd99, emissive: 0x221100 });
-                
-                // Dış duvarlar
-                const wallHeight = 5;
-                const wallThick = 1;
-                const size = 28;
-                
-                const walls = [
-                    { pos: [0, wallHeight/2, -size], scale: [size*2, wallHeight, wallThick] },
-                    { pos: [0, wallHeight/2, size], scale: [size*2, wallHeight, wallThick] },
-                    { pos: [-size, wallHeight/2, 0], scale: [wallThick, wallHeight, size*2] },
-                    { pos: [size, wallHeight/2, 0], scale: [wallThick, wallHeight, size*2] }
-                ];
-                walls.forEach(w => {
-                    const wall = new THREE.Mesh(new THREE.BoxGeometry(...w.scale), wallMat);
-                    wall.position.set(...w.pos);
-                    wall.castShadow = true;
-                    wall.receiveShadow = true;
-                    this.scene.add(wall);
-                });
-
-                // İç koridor duvarları (labirent)
-                for (let i = -20; i <= 20; i+= 8) {
-                    for (let j = -20; j <= 20; j+= 8) {
-                        if (Math.random() > 0.6) {
-                            const pillar = new THREE.Mesh(new THREE.BoxGeometry(1.5, 4, 1.5), new THREE.MeshStandardMaterial({ color: 0xbb9966 }));
-                            pillar.position.set(i, 2, j);
-                            pillar.castShadow = true;
-                            pillar.receiveShadow = true;
-                            this.scene.add(pillar);
-                        }
-                    }
-                }
-            }
-
-            // Karakter oluşturma (Minecraft tarzı blok karakter)
-            createPlayerMesh(team = 'red') {
-                const group = new THREE.Group();
-                
-                // Renkler
-                const shirtColor = team === 'red' ? 0xff5555 : 0x5555ff;
-                const pantColor = 0x2a4a6a;
-                const skinColor = 0xefcbaa;
-                
-                // Gövde (blok)
-                const bodyGeo = new THREE.BoxGeometry(0.8, 1.2, 0.4);
-                const bodyMat = new THREE.MeshStandardMaterial({ color: shirtColor });
-                const body = new THREE.Mesh(bodyGeo, bodyMat);
-                body.position.y = 0.6;
-                body.castShadow = true;
-                body.receiveShadow = true;
-                group.add(body);
-                
-                // Baş (küp)
-                const headGeo = new THREE.BoxGeometry(0.7, 0.7, 0.7);
-                const headMat = new THREE.MeshStandardMaterial({ color: skinColor });
-                const head = new THREE.Mesh(headGeo, headMat);
-                head.position.y = 1.3;
-                head.castShadow = true;
-                head.receiveShadow = true;
-                group.add(head);
-                
-                // Kollar
-                const armGeo = new THREE.BoxGeometry(0.3, 0.9, 0.3);
-                const armMat = new THREE.MeshStandardMaterial({ color: shirtColor });
-                
-                const leftArm = new THREE.Mesh(armGeo, armMat);
-                leftArm.position.set(-0.6, 0.8, 0);
-                leftArm.castShadow = true;
-                group.add(leftArm);
-                
-                const rightArm = new THREE.Mesh(armGeo, armMat);
-                rightArm.position.set(0.6, 0.8, 0);
-                rightArm.castShadow = true;
-                group.add(rightArm);
-                
-                // Bacaklar
-                const legGeo = new THREE.BoxGeometry(0.35, 0.8, 0.35);
-                const legMat = new THREE.MeshStandardMaterial({ color: pantColor });
-                
-                const leftLeg = new THREE.Mesh(legGeo, legMat);
-                leftLeg.position.set(-0.25, 0, 0);
-                leftLeg.castShadow = true;
-                group.add(leftLeg);
-                
-                const rightLeg = new THREE.Mesh(legGeo, legMat);
-                rightLeg.position.set(0.25, 0, 0);
-                rightLeg.castShadow = true;
-                group.add(rightLeg);
-                
-                return group;
-            }
-
-            setupSocketEvents() {
-                socket.on('roomJoined', (data) => {
-                    console.log('Odaya katıldı:', data);
-                    document.getElementById('redCount').innerText = data.redCount;
-                    document.getElementById('blueCount').innerText = data.blueCount;
-                    
-                    // Mevcut tüm oyuncuları ekle
-                    for (let id in data.players) {
-                        if (id !== socket.id) {
-                            this.addOtherPlayer(data.players[id]);
-                        } else {
-                            // Kendi oyuncum
-                            myPlayer = data.players[id];
-                            this.camera.position.set(myPlayer.position.x, myPlayer.position.y+1.2, myPlayer.position.z);
-                        }
-                    }
-                });
-
-                socket.on('newPlayer', (player) => {
-                    this.addOtherPlayer(player);
-                });
-
-                socket.on('playerMoved', (data) => {
-                    const mesh = this.playerMeshes.get(data.id);
-                    if (mesh) {
-                        mesh.position.set(data.position.x, data.position.y, data.position.z);
-                    }
-                });
-
-                socket.on('playerHit', (data) => {
-                    if (data.targetId === socket.id) {
-                        // Bana vurdular
-                        document.getElementById('healthFill').style.width = data.health + '%';
-                        document.getElementById('healthText').innerText = data.health;
-                    }
-                    this.addKillFeed(`🎯 ${data.hitZone} vuruşu!`);
-                });
-
-                socket.on('playerDied', (data) => {
-                    this.addKillFeed(`💀 ${data.killerName} öldürdü ${data.victimName}`);
-                    const mesh = this.playerMeshes.get(data.victimId);
-                    if (mesh) mesh.visible = false;
-                });
-
-                socket.on('playerRespawn', (player) => {
-                    if (player.id === socket.id) {
-                        document.getElementById('healthFill').style.width = '100%';
-                        document.getElementById('healthText').innerText = '100';
-                    }
-                    const mesh = this.playerMeshes.get(player.id);
-                    if (mesh) {
-                        mesh.visible = true;
-                        mesh.position.set(player.position.x, player.position.y, player.position.z);
-                    }
-                });
-
-                socket.on('playerLeft', (id) => {
-                    const mesh = this.playerMeshes.get(id);
-                    if (mesh) {
-                        this.scene.remove(mesh);
-                        this.playerMeshes.delete(id);
-                    }
-                });
-            }
-
-            addOtherPlayer(player) {
-                const mesh = this.createPlayerMesh(player.team);
-                mesh.position.set(player.position.x, player.position.y, player.position.z);
-                this.scene.add(mesh);
-                this.playerMeshes.set(player.id, mesh);
-            }
-
-            addKillFeed(text) {
-                const feed = document.getElementById('killFeed');
-                const item = document.createElement('div');
-                item.className = 'kill-item';
-                item.innerText = text;
-                feed.appendChild(item);
-                setTimeout(() => item.remove(), 3000);
-            }
-
-            jump() {
-                // Zıplama animasyonu (basit)
-                if (myPlayer) {
-                    // Sunucuya gönderebiliriz, ama şimdilik local
-                }
-            }
-
-            animate() {
-                requestAnimationFrame(() => this.animate());
-
-                // Ateş etme kontrolü
-                if (isFiring && myPlayer) {
-                    // Raycast atış burada yapılabilir, ama kısa kalsın
-                }
-
-                // Kamera takibi (kendi oyuncumuzu merkeze al)
-                if (myPlayer) {
-                    // Kamera biraz arkadan ve yukarıdan baksın
-                    this.camera.position.x = myPlayer.position.x;
-                    this.camera.position.z = myPlayer.position.z + 5;
-                    this.camera.position.y = myPlayer.position.y + 3;
-                    this.camera.lookAt(myPlayer.position.x, myPlayer.position.y+1, myPlayer.position.z);
-                }
-
-                this.renderer.render(this.scene, this.camera);
-            }
-        }
-
-        // Bağlantıyı başlat
-        connectServer();
-    </script>
 </body>
 </html>
