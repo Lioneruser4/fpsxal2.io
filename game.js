@@ -1,929 +1,647 @@
 // ═══════════════════════════════════════════════════════════════════════════
-// SAVAŞ OYUNU - game.js
+//  SAVAŞ OYUNU  –  game.js  v2
 // ═══════════════════════════════════════════════════════════════════════════
+const SERVER = ‘https://saskioyunu-1-2d6i.onrender.com’;
 
-const RENDER_URL = ‘https://saskioyunu-1-2d6i.onrender.com’;
-
-// ── Config ─────────────────────────────────────────────────────────────────
 const CFG = {
-MAP_W: 2400, MAP_H: 2400,
-PLAYER_SPEED: 200,
-BULLET_SPEED: 600,
-SHOOT_COOLDOWN: 300,
-PLAYER_R: 18,
-BULLET_R: 4,
+MAP_W: 3200, MAP_H: 3200,
+SPEED: 210,
+BULLET_SPEED: 620,
+SHOOT_CD: 280,
+R: 18,
 TILE: 80
 };
 
-// ── State ──────────────────────────────────────────────────────────────────
-let socket, myId, myTeam, myRoom;
-let players = {}, bullets = [];
-let camX = 0, camY = 0;
-let canvas, ctx;
-let keys = {};
+// ── Durum ─────────────────────────────────────────────────────────────────
+let socket;
+let myId, myTeam, myRoom;
 let myX = 200, myY = 200, myAngle = 0, myHp = 100;
 let alive = true;
-let lastShoot = 0;
 let kills = 0, deaths = 0;
-let anim = ‘idle’, animFrame = 0, animTimer = 0;
-let joystickMove = { x: 0, y: 0 };
-let joystickActive = false;
-let shootActive = false;
-let lastTs = 0;
-let connected = false;
-let reconnectTimer = null;
-let pingInterval = null;
-let playerName = ‘’;
-let telegramId = ‘’;
+let lastShoot = 0;
+let animState = ‘idle’, animFrame = 0, animTimer = 0;
+let jumping = false, jumpVy = 0, jumpY = 0;
+let shootFlash = false, shootFlashT = 0;
+let players = {}, bullets = [];
 let walls = [];
-let miniCanvas, miniCtx;
+let camX = 0, camY = 0;
+let canvas, ctx, miniCanvas, miniCtx;
+let keys = {};
+let joyMove = { x: 0, y: 0 };
+let lastMouseX = 0, lastMouseY = 0;
+let mouseOnCanvas = false;
+let playerName = ‘’;
 
-// ── Telegram WebApp ─────────────────────────────────────────────────────────
-function getTelegramUser() {
+// ── Telegram kullanıcı adını al ───────────────────────────────────────────
+function initTelegram() {
 try {
-if (window.Telegram && window.Telegram.WebApp) {
-const wa = window.Telegram.WebApp;
-wa.ready();
-wa.expand();
-const u = wa.initDataUnsafe?.user;
-if (u) {
-return { name: u.first_name + (u.last_name ? ’ ’ + u.last_name : ‘’), id: ‘tg_’ + u.id };
+const tg = window.Telegram?.WebApp;
+if (tg) {
+tg.ready();
+tg.expand();
+const u = tg.initDataUnsafe?.user;
+if (u && u.id) {
+const first = u.first_name || ‘’;
+const last  = u.last_name  || ‘’;
+playerName  = (first + (last ? ’ ’ + last : ‘’)).trim();
+return;
 }
 }
 } catch(e) {}
-return null;
+// Telegram yoksa ya da user gelmezse random guest
+playerName = ‘Guest’ + Math.floor(Math.random() * 9000 + 1000);
 }
 
-// ── Harita (Backrooms + Askeri) ─────────────────────────────────────────────
-function generateMap() {
+// ── Duvar haritası (Backrooms + askeri üsler) ─────────────────────────────
+function buildMap() {
 walls = [];
 const W = CFG.MAP_W, H = CFG.MAP_H;
 
-// Dış duvarlar
-walls.push({ x: 0,   y: 0,   w: W,   h: 20  });
-walls.push({ x: 0,   y: H-20,w: W,   h: 20  });
-walls.push({ x: 0,   y: 0,   w: 20,  h: H   });
-walls.push({ x: W-20,y: 0,   w: 20,  h: H   });
+// Dış çerçeve
+walls.push(
+{ x:0,   y:0,   w:W,   h:24  },
+{ x:0,   y:H-24,w:W,   h:24  },
+{ x:0,   y:0,   w:24,  h:H   },
+{ x:W-24,y:0,   w:24,  h:H   }
+);
 
-// İç oda yapısı (Backrooms tarzı)
-const roomData = [
-// Ana koridor
-{ x: 400, y: 300, w: 20, h: 800 },
-{ x: 400, y: 300, w: 600, h: 20 },
-{ x: 1000, y: 300, w: 20, h: 400 },
-{ x: 400, y: 1100, w: 600, h: 20 },
-// Yan odalar
-{ x: 600, y: 500, w: 200, h: 20 },
-{ x: 600, y: 500, w: 20, h: 200 },
-{ x: 800, y: 500, w: 20, h: 200 },
-{ x: 600, y: 700, w: 200, h: 20 },
-// Merkez alan
-{ x: 1100, y: 800, w: 20, h: 600 },
-{ x: 1100, y: 800, w: 400, h: 20 },
-{ x: 1500, y: 800, w: 20, h: 300 },
-{ x: 1100, y: 1400, w: 400, h: 20 },
-{ x: 1500, y: 1100, w: 20, h: 300 },
-// Sağ koridorlar
-{ x: 1700, y: 400, w: 20, h: 500 },
-{ x: 1700, y: 400, w: 400, h: 20 },
-{ x: 2100, y: 400, w: 20, h: 500 },
-{ x: 1700, y: 900, w: 400, h: 20 },
-// Alt bölge
-{ x: 700, y: 1500, w: 20, h: 600 },
-{ x: 700, y: 1500, w: 600, h: 20 },
-{ x: 1300, y: 1500, w: 20, h: 600 },
-{ x: 700, y: 2100, w: 600, h: 20 },
-// Ekstra engeller
-{ x: 1800, y: 1500, w: 20, h: 400 },
-{ x: 1800, y: 1500, w: 300, h: 20 },
-{ x: 2100, y: 1500, w: 20, h: 400 },
-{ x: 1800, y: 1900, w: 300, h: 20 },
+// ── Kırmızı Üs duvarları (sol-üst) ──────────────────────────────────
+// Üs: 80-700 x 80-700 açık kutu (kapı var)
+walls.push(
+{ x:80,  y:80,  w:620, h:20  }, // üst
+{ x:80,  y:80,  w:20,  h:620 }, // sol
+{ x:80,  y:680, w:260, h:20  }, // alt sol parça
+{ x:440, y:680, w:260, h:20  }, // alt sağ parça (ortada kapı)
+{ x:700, y:80,  w:20,  h:260 }, // sağ üst parça
+{ x:700, y:440, w:20,  h:260 }, // sağ alt parça (sağda kapı)
+);
+
+// ── Mavi Üs duvarları (sağ-alt) ─────────────────────────────────────
+const bx = W - 720, by = H - 720;
+walls.push(
+{ x:bx,    y:by+600, w:620, h:20  }, // alt
+{ x:bx+600,y:by,     w:20,  h:620 }, // sağ
+{ x:bx,    y:by,     w:260, h:20  }, // üst sol parça
+{ x:bx+360,y:by,     w:260, h:20  }, // üst sağ parça
+{ x:bx,    y:by,     w:20,  h:260 }, // sol üst parça
+{ x:bx,    y:by+360, w:20,  h:260 }, // sol alt parça
+);
+
+// ── İç koridorlar / odalar ────────────────────────────────────────────
+const inner = [
+// Merkez yatay duvar (kapı ortada)
+{ x:900,  y:1580, w:550, h:20 },
+{ x:1750, y:1580, w:550, h:20 },
+// Merkez dikey duvar
+{ x:1580, y:900,  w:20,  h:550 },
+{ x:1580, y:1750, w:20,  h:550 },
+// Sol koridor
+{ x:800,  y:300,  w:20,  h:800 },
+{ x:800,  y:300,  w:400, h:20  },
+{ x:1200, y:300,  w:20,  h:400 },
+{ x:800,  y:1100, w:400, h:20  },
+// Sağ koridor
+{ x:2380, y:300,  w:20,  h:800 },
+{ x:1980, y:300,  w:400, h:20  },
+{ x:1980, y:300,  w:20,  h:400 },
+{ x:1980, y:1100, w:400, h:20  },
+// Alt sol
+{ x:800,  y:2100, w:20,  h:800 },
+{ x:800,  y:2100, w:400, h:20  },
+{ x:1200, y:2100, w:20,  h:400 },
+{ x:800,  y:2900, w:400, h:20  },
+// Alt sağ
+{ x:2380, y:2100, w:20,  h:800 },
+{ x:1980, y:2100, w:400, h:20  },
+{ x:1980, y:2100, w:20,  h:400 },
+{ x:1980, y:2900, w:400, h:20  },
 // Merkez bloklar
-{ x: 1050, y: 1050, w: 120, h: 120 },
-{ x: 500, y: 1300, w: 80, h: 80  },
-{ x: 1800, y: 1100, w: 80, h: 80 },
-{ x: 900, y: 600, w: 80, h: 80  },
+{ x:1460, y:1460, w:280, h:280 },
+{ x:500,  y:1500, w:100, h:100 },
+{ x:2600, y:1500, w:100, h:100 },
+{ x:1500, y:500,  w:100, h:100 },
+{ x:1500, y:2600, w:100, h:100 },
+{ x:1100, y:1100, w:80,  h:80  },
+{ x:2020, y:1100, w:80,  h:80  },
+{ x:1100, y:2020, w:80,  h:80  },
+{ x:2020, y:2020, w:80,  h:80  },
 ];
-walls.push(…roomData);
+walls.push(…inner);
 }
 
 function wallCollide(x, y, r) {
 for (const w of walls) {
-const cx = Math.max(w.x, Math.min(w.x + w.w, x));
-const cy = Math.max(w.y, Math.min(w.y + w.h, y));
-const dx = x - cx, dy = y - cy;
-if (dx*dx + dy*dy < r*r) return true;
+const cx = Math.max(w.x, Math.min(w.x+w.w, x));
+const cy = Math.max(w.y, Math.min(w.y+w.h, y));
+const dx = x-cx, dy = y-cy;
+if (dx*dx+dy*dy < r*r) return true;
 }
 return false;
 }
 
-function bulletHitsWall(x, y) {
-for (const w of walls) {
-if (x >= w.x && x <= w.x + w.w && y >= w.y && y <= w.y + w.h) return true;
-}
-return false;
-}
-
-// ── Animasyon ───────────────────────────────────────────────────────────────
-const ANIMS = {
-idle:   { frames: 1, speed: 500 },
-walk:   { frames: 4, speed: 120 },
-jump:   { frames: 2, speed: 150 },
-shoot:  { frames: 2, speed: 80  }
-};
-let jumping = false, jumpVy = 0, jumpY2d = 0;
-let shootAnim = false, shootAnimTimer = 0;
-
-function updateAnim(dt) {
+// ── Animasyon ─────────────────────────────────────────────────────────────
+function tickAnim(dt) {
+const spd = animState === ‘walk’ ? 110 : animState === ‘jump’ ? 140 : animState === ‘shoot’ ? 70 : 400;
+const frames = animState === ‘walk’ ? 4 : 2;
 animTimer += dt;
-const cur = ANIMS[anim] || ANIMS.idle;
-if (animTimer > cur.speed) {
-animTimer = 0;
-animFrame = (animFrame + 1) % cur.frames;
-}
-if (shootAnim) {
-shootAnimTimer -= dt;
-if (shootAnimTimer <= 0) { shootAnim = false; }
-}
+if (animTimer > spd) { animTimer = 0; animFrame = (animFrame+1) % frames; }
+if (shootFlash) { shootFlashT -= dt; if (shootFlashT <= 0) shootFlash = false; }
 }
 
-// ── Çizim: Asker karakteri ──────────────────────────────────────────────────
-function drawSoldier(cx, cy, angle, team, hp, name, isMe, animState, frame) {
+// ── Asker çizimi ──────────────────────────────────────────────────────────
+function drawSoldier(cx, cy, angle, team, hp, name, isMe, st, fr, jy) {
 ctx.save();
-ctx.translate(cx, cy);
+ctx.translate(cx, cy + jy);
 
-const col = team === ‘red’ ? ‘#e74c3c’ : ‘#2980b9’;
-const dark = team === ‘red’ ? ‘#c0392b’ : ‘#1a5276’;
-const skin = ‘#f5cba7’;
+const col  = team === ‘red’ ? ‘#c0392b’ : ‘#1a6fa8’;
+const dark = team === ‘red’ ? ‘#922b21’ : ‘#154360’;
+const skin = ‘#f0c080’;
 
 // Gölge
-ctx.fillStyle = ‘rgba(0,0,0,0.18)’;
-ctx.ellipse(0, 14, 16, 6, 0, 0, Math.PI*2);
-ctx.fill();
+ctx.fillStyle = ‘rgba(0,0,0,0.2)’;
+ctx.beginPath(); ctx.ellipse(0,16,16,5,0,0,Math.PI*2); ctx.fill();
 
-// Vücut hareketi (yürüme sallanması)
-let bob = 0;
-if (animState === ‘walk’) bob = Math.sin(frame * Math.PI) * 3;
+const bob  = (st===‘walk’) ? Math.sin(fr*Math.PI)*3 : 0;
+const legL = (st===‘walk’) ? Math.sin(fr*Math.PI)*9  : 0;
 
 // Bacaklar
-const legOff = animState === ‘walk’ ? Math.sin(frame * Math.PI) * 8 : 0;
 ctx.fillStyle = dark;
-// Sol bacak
-ctx.fillRect(-8, 8 + bob, 7, 14 + legOff * 0.5);
-// Sağ bacak
-ctx.fillRect(1, 8 + bob, 7, 14 - legOff * 0.5);
-
+ctx.fillRect(-9, 8+bob,    8, 14+legL*0.5);
+ctx.fillRect( 1, 8+bob,    8, 14-legL*0.5);
 // Çizmeler
-ctx.fillStyle = ‘#2c2c2c’;
-ctx.fillRect(-9, 20 + bob + legOff*0.5, 9, 5);
-ctx.fillRect(0,  20 + bob - legOff*0.5, 9, 5);
+ctx.fillStyle = ‘#1a1a1a’;
+ctx.fillRect(-10,20+bob+legL*0.5,  10, 5);
+ctx.fillRect(  0,20+bob-legL*0.5,  10, 5);
 
-// Gövde / forma
+// Gövde
 ctx.fillStyle = col;
-ctx.fillRect(-10, -8 + bob, 20, 18);
-
-// Kamuflaj detayları
+ctx.fillRect(-11,-8+bob,22,18);
+// Ceket detay
 ctx.fillStyle = dark;
-ctx.fillRect(-8, -6+bob, 5, 4);
-ctx.fillRect(3, -2+bob, 4, 5);
-ctx.fillRect(-5, 4+bob, 3, 3);
+ctx.fillRect(-9,-5+bob,5,3);
+ctx.fillRect( 4,-1+bob,4,4);
+ctx.fillRect(-4, 5+bob,3,3);
+// Kemer
+ctx.fillStyle = ‘#1a1a1a’;
+ctx.fillRect(-11, 8+bob, 22, 3);
 
 // Kollar
-const armSwing = animState === ‘walk’ ? Math.sin(frame * Math.PI) * 10 : 0;
+const armS = (st===‘walk’) ? Math.sin(fr*Math.PI)*8 : 0;
 ctx.fillStyle = col;
-// Sol kol
-ctx.save();
-ctx.translate(-14, -2 + bob);
-ctx.rotate(-armSwing * 0.04);
-ctx.fillRect(-4, 0, 8, 12);
-ctx.restore();
-// Sağ kol (silah tutan)
-ctx.save();
-ctx.translate(14, -2 + bob);
-ctx.rotate(armSwing * 0.04);
-ctx.fillRect(-4, 0, 8, 12);
-ctx.restore();
+ctx.save(); ctx.translate(-15,-1+bob); ctx.rotate(-armS*0.04); ctx.fillRect(-4,0,8,12); ctx.restore();
+ctx.save(); ctx.translate( 15,-1+bob); ctx.rotate( armS*0.04); ctx.fillRect(-4,0,8,12); ctx.restore();
 
-// Baş
+// Baş + kask
 ctx.fillStyle = skin;
-ctx.fillRect(-8, -20+bob, 16, 14);
-
-// Baret / kask
+ctx.fillRect(-8,-21+bob,16,14);
 ctx.fillStyle = dark;
-ctx.fillRect(-9, -22+bob, 18, 8);
-ctx.fillRect(-7, -26+bob, 14, 5);
-
+ctx.fillRect(-9,-24+bob,18,7);
+ctx.fillRect(-7,-28+bob,14,5);
 // Gözler
-ctx.fillStyle = ‘#2c2c2c’;
-ctx.fillRect(-5, -16+bob, 3, 3);
-ctx.fillRect(2,  -16+bob, 3, 3);
+ctx.fillStyle = ‘#222’;
+ctx.fillRect(-5,-17+bob,3,3);
+ctx.fillRect( 2,-17+bob,3,3);
 
 // Silah
 ctx.save();
-ctx.translate(12, 2+bob);
+ctx.translate(13,1+bob);
 ctx.rotate(angle);
-ctx.fillStyle = ‘#2c2c2c’;
-ctx.fillRect(0, -2, 22, 4);
-ctx.fillStyle = ‘#555’;
-ctx.fillRect(18, -3, 6, 6);
-ctx.restore();
-
-// Ateş animasyonu
-if (animState === ‘shoot’) {
-ctx.save();
-ctx.translate(12, 2+bob);
-ctx.rotate(angle);
-ctx.fillStyle = ‘rgba(255,200,0,0.8)’;
-ctx.beginPath();
-ctx.ellipse(28, 0, 10, 5, 0, 0, Math.PI*2);
-ctx.fill();
-ctx.restore();
+ctx.fillStyle = ‘#222’; ctx.fillRect(0,-2,24,4);
+ctx.fillStyle = ‘#444’; ctx.fillRect(20,-3,7,6);
+ctx.fillStyle = ‘#555’; ctx.fillRect(-2,-1,4,2); // stok
+if (st===‘shoot’ || (isMe && shootFlash)) {
+ctx.fillStyle=‘rgba(255,200,0,0.9)’;
+ctx.beginPath(); ctx.ellipse(32,0,10,5,0,0,Math.PI*2); ctx.fill();
 }
+ctx.restore();
 
 // Can barı
-const barW = 36;
-const barH = 4;
-const hpRatio = Math.max(0, hp / 100);
-ctx.fillStyle = ‘rgba(0,0,0,0.5)’;
-ctx.fillRect(-barW/2, -34+bob, barW, barH);
-const barCol = hpRatio > 0.5 ? ‘#2ecc71’ : hpRatio > 0.25 ? ‘#f39c12’ : ‘#e74c3c’;
-ctx.fillStyle = barCol;
-ctx.fillRect(-barW/2, -34+bob, barW * hpRatio, barH);
+const bw = 38, bh = 4;
+const ratio = Math.max(0,hp/100);
+ctx.fillStyle=‘rgba(0,0,0,0.6)’; ctx.fillRect(-bw/2,-36+bob,bw,bh);
+ctx.fillStyle = ratio>0.5?’#27ae60’:ratio>0.25?’#e67e22’:’#e74c3c’;
+ctx.fillRect(-bw/2,-36+bob,bw*ratio,bh);
 
 // İsim
-ctx.fillStyle = isMe ? ‘#FFD700’ : ‘#fff’;
-ctx.font = isMe ? ‘bold 11px Arial’ : ‘10px Arial’;
-ctx.textAlign = ‘center’;
-ctx.shadowColor = ‘#000’;
-ctx.shadowBlur = 3;
-ctx.fillText(name.substring(0, 12), 0, -38+bob);
-ctx.shadowBlur = 0;
+ctx.textAlign=‘center’;
+ctx.font = isMe ? ‘bold 11px Arial’:‘10px Arial’;
+ctx.fillStyle = isMe ? ‘#FFD700’:’#eee’;
+ctx.shadowColor=’#000’; ctx.shadowBlur=3;
+ctx.fillText(name.substring(0,14),0,-41+bob);
+ctx.shadowBlur=0;
 
 ctx.restore();
 }
 
-// ── Harita çizimi ───────────────────────────────────────────────────────────
-function drawMap() {
-// Zemin (Backrooms sarımtırak fayans)
-const tile = CFG.TILE;
-for (let tx = Math.floor(camX/tile)*tile; tx < camX + canvas.width + tile; tx += tile) {
-for (let ty = Math.floor(camY/tile)*tile; ty < camY + canvas.height + tile; ty += tile) {
-const row = Math.floor(tx/tile) + Math.floor(ty/tile);
-ctx.fillStyle = row % 2 === 0 ? ‘#d4c89a’ : ‘#c9bb89’;
-ctx.fillRect(tx - camX, ty - camY, tile, tile);
+// ── Harita çizimi ─────────────────────────────────────────────────────────
+function drawWorld() {
+const W=canvas.width, H=canvas.height;
+const T=CFG.TILE;
+
+// Zemin fayanslar
+for (let tx=Math.floor(camX/T)*T; tx<camX+W+T; tx+=T) {
+for (let ty=Math.floor(camY/T)*T; ty<camY+H+T; ty+=T) {
+const even=((tx/T)+(ty/T))%2===0;
+ctx.fillStyle = even ? ‘#ccc090’:’#bfb785’;
+ctx.fillRect(tx-camX,ty-camY,T,T);
 }
+}
+// Hafif grid
+ctx.strokeStyle=‘rgba(0,0,0,0.07)’; ctx.lineWidth=1;
+for (let tx=Math.floor(camX/T)*T; tx<camX+W+T; tx+=T) {
+ctx.beginPath(); ctx.moveTo(tx-camX,0); ctx.lineTo(tx-camX,H); ctx.stroke();
+}
+for (let ty=Math.floor(camY/T)*T; ty<camY+H+T; ty+=T) {
+ctx.beginPath(); ctx.moveTo(0,ty-camY); ctx.lineTo(W,ty-camY); ctx.stroke();
 }
 
-// Grid çizgileri (hafif)
-ctx.strokeStyle = ‘rgba(0,0,0,0.08)’;
-ctx.lineWidth = 1;
-for (let tx = Math.floor(camX/tile)*tile; tx < camX + canvas.width + tile; tx += tile) {
-ctx.beginPath();
-ctx.moveTo(tx - camX, 0);
-ctx.lineTo(tx - camX, canvas.height);
-ctx.stroke();
-}
-for (let ty = Math.floor(camY/tile)*tile; ty < camY + canvas.height + tile; ty += tile) {
-ctx.beginPath();
-ctx.moveTo(0, ty - camY);
-ctx.lineTo(canvas.width, ty - camY);
-ctx.stroke();
-}
+// ── Kırmızı üs zemini ────────────────────────────────────────────────
+ctx.fillStyle=‘rgba(231,76,60,0.12)’;
+ctx.fillRect(80-camX, 80-camY, 640, 640);
+ctx.strokeStyle=‘rgba(231,76,60,0.5)’; ctx.lineWidth=3;
+ctx.strokeRect(80-camX, 80-camY, 640, 640);
+ctx.fillStyle=‘rgba(231,76,60,0.7)’;
+ctx.font=‘bold 18px Arial’; ctx.textAlign=‘center’;
+ctx.fillText(‘🔴 KIRMIZI ÜS’, 400-camX, 130-camY);
 
-// Duvarlar
+// ── Mavi üs zemini ────────────────────────────────────────────────────
+const bx=CFG.MAP_W-720, by=CFG.MAP_H-720;
+ctx.fillStyle=‘rgba(41,128,185,0.12)’;
+ctx.fillRect(bx-camX, by-camY, 640, 640);
+ctx.strokeStyle=‘rgba(41,128,185,0.5)’; ctx.lineWidth=3;
+ctx.strokeRect(bx-camX, by-camY, 640, 640);
+ctx.fillStyle=‘rgba(41,128,185,0.7)’;
+ctx.font=‘bold 18px Arial’; ctx.textAlign=‘center’;
+ctx.fillText(‘🔵 MAVİ ÜS’, bx+320-camX, by+50-camY);
+
+// ── Duvarlar ──────────────────────────────────────────────────────────
 for (const w of walls) {
-const sx = w.x - camX, sy = w.y - camY;
-if (sx > canvas.width || sy > canvas.height || sx + w.w < 0 || sy + w.h < 0) continue;
-// Ana duvar
-ctx.fillStyle = ‘#5d4e37’;
-ctx.fillRect(sx, sy, w.w, w.h);
-// Üst highlight
-ctx.fillStyle = ‘#7a6548’;
-ctx.fillRect(sx, sy, w.w, Math.min(4, w.h));
-// Sağ gölge
-ctx.fillStyle = ‘#3e3326’;
-ctx.fillRect(sx + w.w - Math.min(4, w.w), sy, Math.min(4, w.w), w.h);
-// Doku deseni
-ctx.fillStyle = ‘rgba(0,0,0,0.07)’;
-for (let bx = sx; bx < sx+w.w; bx += 20) {
-for (let by = sy; by < sy+w.h; by += 10) {
-ctx.fillRect(bx, by, 18, 1);
-}
+const wx=w.x-camX, wy=w.y-camY;
+if (wx>W||wy>H||wx+w.w<0||wy+w.h<0) continue;
+ctx.fillStyle=’#5a4530’; ctx.fillRect(wx,wy,w.w,w.h);
+ctx.fillStyle=’#7a6040’; ctx.fillRect(wx,wy,w.w,Math.min(5,w.h));
+ctx.fillStyle=’#3a2a18’; ctx.fillRect(wx+w.w-Math.min(5,w.w),wy,Math.min(5,w.w),w.h);
+// tuğla doku
+ctx.fillStyle=‘rgba(0,0,0,0.08)’;
+for (let bx2=wx;bx2<wx+w.w;bx2+=22) for (let by2=wy;by2<wy+w.h;by2+=12) ctx.fillRect(bx2,by2,20,1);
 }
 }
 
-// Spawn alanları
-ctx.fillStyle = ‘rgba(231, 76, 60, 0.15)’;
-ctx.fillRect(100 - camX, 100 - camY, 700, 700);
-ctx.strokeStyle = ‘rgba(231, 76, 60, 0.4)’;
-ctx.lineWidth = 2;
-ctx.strokeRect(100 - camX, 100 - camY, 700, 700);
-ctx.fillStyle = ‘rgba(231,76,60,0.5)’;
-ctx.font = ‘bold 20px Arial’;
-ctx.textAlign = ‘center’;
-ctx.fillText(‘KIRMIZI ÜSSÜ’, 450 - camX, 160 - camY);
-
-ctx.fillStyle = ‘rgba(41, 128, 185, 0.15)’;
-ctx.fillRect(1600 - camX, 1600 - camY, 700, 700);
-ctx.strokeStyle = ‘rgba(41,128,185,0.4)’;
-ctx.lineWidth = 2;
-ctx.strokeRect(1600 - camX, 1600 - camY, 700, 700);
-ctx.fillStyle = ‘rgba(41,128,185,0.5)’;
-ctx.fillText(‘MAVİ ÜSSÜ’, 1950 - camX, 1660 - camY);
-}
-
-// ── Mermi çizimi ────────────────────────────────────────────────────────────
 function drawBullets() {
 for (const b of bullets) {
-const bx = b.x - camX, by = b.y - camY;
+const bx=b.x-camX, by=b.y-camY;
+if (bx<-10||bx>canvas.width+10||by<-10||by>canvas.height+10) continue;
 ctx.save();
-ctx.fillStyle = ‘#FFD700’;
-ctx.shadowColor = ‘#FF8C00’;
-ctx.shadowBlur = 8;
-ctx.beginPath();
-ctx.arc(bx, by, CFG.BULLET_R, 0, Math.PI*2);
-ctx.fill();
-// İz
-ctx.strokeStyle = ‘rgba(255,200,0,0.3)’;
-ctx.lineWidth = 2;
-ctx.beginPath();
-ctx.moveTo(bx, by);
-ctx.lineTo(bx - b.vx * 20, by - b.vy * 20);
-ctx.stroke();
+ctx.shadowColor=’#ffa500’; ctx.shadowBlur=8;
+ctx.fillStyle=’#FFD700’;
+ctx.beginPath(); ctx.arc(bx,by,4,0,Math.PI*2); ctx.fill();
+ctx.strokeStyle=‘rgba(255,200,0,0.3)’; ctx.lineWidth=2;
+ctx.beginPath(); ctx.moveTo(bx,by); ctx.lineTo(bx-b.vx*18,by-b.vy*18); ctx.stroke();
 ctx.restore();
 }
 }
 
-// ── Mini harita ─────────────────────────────────────────────────────────────
 function drawMinimap() {
 if (!miniCanvas) return;
-const mW = miniCanvas.width, mH = miniCanvas.height;
-const scX = mW / CFG.MAP_W, scY = mH / CFG.MAP_H;
-miniCtx.clearRect(0, 0, mW, mH);
-miniCtx.fillStyle = ‘#c9bb89’;
-miniCtx.fillRect(0, 0, mW, mH);
-
-// Duvarlar
-miniCtx.fillStyle = ‘#5d4e37’;
-for (const w of walls) {
-miniCtx.fillRect(w.x*scX, w.y*scY, Math.max(1, w.w*scX), Math.max(1, w.h*scY));
-}
-
-// Oyuncular
-for (const sid in players) {
-const p = players[sid];
+const mw=miniCanvas.width, mh=miniCanvas.height;
+const sx=mw/CFG.MAP_W, sy=mh/CFG.MAP_H;
+miniCtx.clearRect(0,0,mw,mh);
+miniCtx.fillStyle=’#c8b878’; miniCtx.fillRect(0,0,mw,mh);
+// üsler
+miniCtx.fillStyle=‘rgba(231,76,60,0.3)’;   miniCtx.fillRect(80*sx,80*sy,640*sx,640*sy);
+miniCtx.fillStyle=‘rgba(41,128,185,0.3)’;  miniCtx.fillRect((CFG.MAP_W-720)*sx,(CFG.MAP_H-720)*sy,640*sx,640*sy);
+// duvarlar
+miniCtx.fillStyle=’#5a4530’;
+for (const w of walls) miniCtx.fillRect(w.x*sx,w.y*sy,Math.max(1,w.w*sx),Math.max(1,w.h*sy));
+// oyuncular
+for (const id in players) {
+const p=players[id];
 if (!p.alive) continue;
-miniCtx.fillStyle = p.team === ‘red’ ? ‘#e74c3c’ : ‘#2980b9’;
-if (sid === myId) { miniCtx.fillStyle = ‘#FFD700’; }
-miniCtx.fillRect(p.x*scX-2, p.y*scY-2, 4, 4);
+miniCtx.fillStyle = id===myId ? ‘#FFD700’ : p.team===‘red’ ? ‘#e74c3c’ : ‘#3498db’;
+miniCtx.fillRect(p.x*sx-2,p.y*sy-2,4,4);
 }
-// Kamera view rect
-miniCtx.strokeStyle = ‘rgba(255,255,255,0.6)’;
-miniCtx.lineWidth = 1;
-miniCtx.strokeRect(camX*scX, camY*scY, canvas.width*scX, canvas.height*scY);
+// görüş kutusu
+miniCtx.strokeStyle=‘rgba(255,255,255,0.5)’; miniCtx.lineWidth=1;
+miniCtx.strokeRect(camX*sx,camY*sy,canvas.width*sx,canvas.height*sy);
 }
 
-// ── Girdi ───────────────────────────────────────────────────────────────────
+// ── Girdi ─────────────────────────────────────────────────────────────────
 function setupInput() {
-window.addEventListener(‘keydown’, e => { keys[e.code] = true; });
-window.addEventListener(‘keyup’,   e => { keys[e.code] = false; });
+window.addEventListener(‘keydown’,e=>{ keys[e.code]=true; if(e.code===‘Space’){e.preventDefault();doJump();} });
+window.addEventListener(‘keyup’,  e=>{ keys[e.code]=false; });
 
-// Mouse tıklama (masaüstü)
-canvas.addEventListener(‘click’, e => {
-if (!alive) return;
-const rect = canvas.getBoundingClientRect();
-const mx = e.clientX - rect.left + camX;
-const my = e.clientY - rect.top + camY;
-doShoot(mx, my);
+canvas.addEventListener(‘mousemove’,e=>{
+const r=canvas.getBoundingClientRect();
+lastMouseX=e.clientX-r.left; lastMouseY=e.clientY-r.top; mouseOnCanvas=true;
+});
+canvas.addEventListener(‘mouseleave’,()=>mouseOnCanvas=false);
+canvas.addEventListener(‘click’,e=>{
+const r=canvas.getBoundingClientRect();
+const wx=e.clientX-r.left+camX, wy=e.clientY-r.top+camY;
+tryShoot(wx,wy);
+});
+canvas.addEventListener(‘mousedown’,e=>{
+if(e.button===0){ const r=canvas.getBoundingClientRect(); const wx=e.clientX-r.left+camX, wy=e.clientY-r.top+camY; tryShoot(wx,wy); }
 });
 
-// ── Mobil joystick (sol) ──────────────────────────────────────────────
-const joyEl = document.getElementById(‘joystick’);
-const joyKnob = document.getElementById(‘joystick-knob’);
-let joyOrigin = null;
+// Joystick sol
+const joy=document.getElementById(‘joystick’);
+const jknob=document.getElementById(‘joy-knob’);
+let jt=null, jOrigin={x:0,y:0};
+joy.addEventListener(‘touchstart’,e=>{ e.preventDefault(); const t=e.changedTouches[0]; jt=t.identifier; const r=joy.getBoundingClientRect(); jOrigin={x:r.left+r.width/2,y:r.top+r.height/2}; },{passive:false});
+joy.addEventListener(‘touchmove’,e=>{ e.preventDefault(); for(const t of e.changedTouches){ if(t.identifier!==jt) continue; const dx=t.clientX-jOrigin.x, dy=t.clientY-jOrigin.y; const d=Math.sqrt(dx*dx+dy*dy); const mx=50; const nx=d>mx?dx/d*mx:dx; const ny=d>mx?dy/d*mx:dy; joyMove={x:nx/mx,y:ny/mx}; jknob.style.transform=`translate(calc(-50% + ${nx}px),calc(-50% + ${ny}px))`; } },{passive:false});
+const jEnd=()=>{ joyMove={x:0,y:0}; jknob.style.transform=‘translate(-50%,-50%)’; };
+joy.addEventListener(‘touchend’,jEnd); joy.addEventListener(‘touchcancel’,jEnd);
 
-function getTouch(el, id) {
-const arr = el.touches || [];
-for (let i = 0; i < arr.length; i++) if (arr[i].identifier === id) return arr[i];
-return null;
-}
+// Aim joystick sağ
+const aim=document.getElementById(‘aim-joystick’);
+const aknob=document.getElementById(‘aim-knob’);
+let at=null, aOrigin={x:0,y:0};
+aim.addEventListener(‘touchstart’,e=>{ e.preventDefault(); const t=e.changedTouches[0]; at=t.identifier; const r=aim.getBoundingClientRect(); aOrigin={x:r.left+r.width/2,y:r.top+r.height/2}; },{passive:false});
+aim.addEventListener(‘touchmove’,e=>{ e.preventDefault(); for(const t of e.changedTouches){ if(t.identifier!==at) continue; const dx=t.clientX-aOrigin.x, dy=t.clientY-aOrigin.y; const d=Math.sqrt(dx*dx+dy*dy); const mx=50; const nx=d>mx?dx/d*mx:dx; const ny=d>mx?dy/d*mx:dy; myAngle=Math.atan2(ny,nx); aknob.style.transform=`translate(calc(-50% + ${nx}px),calc(-50% + ${ny}px))`; if(d>15){ const tx2=myX+Math.cos(myAngle)*200; const ty2=myY+Math.sin(myAngle)*200; tryShoot(tx2,ty2); } } },{passive:false});
+const aEnd=()=>{ aknob.style.transform=‘translate(-50%,-50%)’; };
+aim.addEventListener(‘touchend’,aEnd); aim.addEventListener(‘touchcancel’,aEnd);
 
-let joyTouchId = null;
-joyEl.addEventListener(‘touchstart’, e => {
-e.preventDefault();
-const t = e.changedTouches[0];
-joyTouchId = t.identifier;
-const r = joyEl.getBoundingClientRect();
-joyOrigin = { x: r.left + r.width/2, y: r.top + r.height/2 };
-joystickActive = true;
-}, { passive: false });
+// Ateş butonu
+const sb=document.getElementById(‘shoot-btn’);
+sb.addEventListener(‘touchstart’,e=>{ e.preventDefault(); const tx=myX+Math.cos(myAngle)*200; const ty=myY+Math.sin(myAngle)*200; tryShoot(tx,ty); },{passive:false});
 
-joyEl.addEventListener(‘touchmove’, e => {
-e.preventDefault();
-for (const t of e.changedTouches) {
-if (t.identifier !== joyTouchId) continue;
-const dx = t.clientX - joyOrigin.x;
-const dy = t.clientY - joyOrigin.y;
-const dist = Math.sqrt(dx*dx + dy*dy);
-const max = 50;
-const nx = dist > max ? dx/dist*max : dx;
-const ny = dist > max ? dy/dist*max : dy;
-joystickMove = { x: nx/max, y: ny/max };
-joyKnob.style.transform = `translate(calc(-50% + ${nx}px), calc(-50% + ${ny}px))`;
-}
-}, { passive: false });
-
-function joyEnd(e) {
-joystickMove = { x: 0, y: 0 };
-joystickActive = false;
-joyKnob.style.transform = ‘translate(-50%, -50%)’;
-}
-joyEl.addEventListener(‘touchend’, joyEnd);
-joyEl.addEventListener(‘touchcancel’, joyEnd);
-
-// ── Mobil ateş butonu ──────────────────────────────────────────────────
-const shootBtn = document.getElementById(‘shoot-btn’);
-shootBtn.addEventListener(‘touchstart’, e => {
-e.preventDefault();
-shootActive = true;
-const now = Date.now();
-if (now - lastShoot > CFG.SHOOT_COOLDOWN && alive) {
-const angle = myAngle;
-const tx = myX + Math.cos(angle) * 200;
-const ty = myY + Math.sin(angle) * 200;
-doShoot(tx, ty);
-}
-}, { passive: false });
-shootBtn.addEventListener(‘touchend’, () => shootActive = false);
-
-// ── Mobil zıplama ──────────────────────────────────────────────────────
-const jumpBtn = document.getElementById(‘jump-btn’);
-jumpBtn.addEventListener(‘touchstart’, e => {
-e.preventDefault();
-doJump();
-}, { passive: false });
-
-// ── Sağ taraf aim joystick ─────────────────────────────────────────────
-const aimEl = document.getElementById(‘aim-joystick’);
-const aimKnob = document.getElementById(‘aim-knob’);
-let aimOrigin = null, aimTouchId = null;
-
-aimEl.addEventListener(‘touchstart’, e => {
-e.preventDefault();
-const t = e.changedTouches[0];
-aimTouchId = t.identifier;
-const r = aimEl.getBoundingClientRect();
-aimOrigin = { x: r.left + r.width/2, y: r.top + r.height/2 };
-}, { passive: false });
-
-aimEl.addEventListener(‘touchmove’, e => {
-e.preventDefault();
-for (const t of e.changedTouches) {
-if (t.identifier !== aimTouchId) continue;
-const dx = t.clientX - aimOrigin.x;
-const dy = t.clientY - aimOrigin.y;
-const dist = Math.sqrt(dx*dx + dy*dy);
-const max = 50;
-const nx = dist > max ? dx/dist*max : dx;
-const ny = dist > max ? dy/dist*max : dy;
-myAngle = Math.atan2(ny, nx);
-aimKnob.style.transform = `translate(calc(-50% + ${nx}px), calc(-50% + ${ny}px))`;
-// Otomatik ateş
-const now = Date.now();
-if (dist > 20 && now - lastShoot > CFG.SHOOT_COOLDOWN && alive) {
-const tx = myX + Math.cos(myAngle) * 200;
-const ty = myY + Math.sin(myAngle) * 200;
-doShoot(tx, ty);
-}
-}
-}, { passive: false });
-
-function aimEnd() {
-aimKnob.style.transform = ‘translate(-50%, -50%)’;
-}
-aimEl.addEventListener(‘touchend’, aimEnd);
-aimEl.addEventListener(‘touchcancel’, aimEnd);
+// Zıpla
+document.getElementById(‘jump-btn’).addEventListener(‘touchstart’,e=>{ e.preventDefault(); doJump(); },{passive:false});
 }
 
 function doJump() {
-if (!jumping && alive) {
-jumping = true;
-jumpVy = -8;
-anim = ‘jump’;
-}
+if (!jumping && alive) { jumping=true; jumpVy=-7; animState=‘jump’; }
 }
 
-function doShoot(tx, ty) {
-const now = Date.now();
-if (now - lastShoot < CFG.SHOOT_COOLDOWN || !alive) return;
-lastShoot = now;
-const dx = tx - myX, dy = ty - myY;
-const dist = Math.sqrt(dx*dx + dy*dy) || 1;
-const vx = dx/dist, vy = dy/dist;
-
-// Vücut bölgesi belirleme (basit: headshot %15 şans)
-const rand = Math.random();
-const bodyPart = rand < 0.15 ? ‘head’ : rand < 0.25 ? ‘feet’ : ‘body’;
-
-socket.emit(‘shoot’, { x: myX, y: myY, vx, vy, bodyPart });
-shootAnim = true;
-shootAnimTimer = 150;
-
-// Lokal mermi
-bullets.push({
-id: ‘local_’ + now,
-x: myX, y: myY,
-vx, vy,
-owner: myId,
-ownerTeam: myTeam,
-bodyPart,
-life: 2000
-});
+function tryShoot(tx, ty) {
+if (!alive) return;
+const now=Date.now();
+if (now-lastShoot < CFG.SHOOT_CD) return;
+lastShoot=now;
+const dx=tx-myX, dy=ty-myY, dist=Math.sqrt(dx*dx+dy*dy)||1;
+const vx=dx/dist, vy=dy/dist;
+const rnd=Math.random();
+const part=rnd<0.14?‘head’:rnd<0.24?‘feet’:‘body’;
+myAngle=Math.atan2(vy,vx);
+socket.emit(‘shoot’,{x:myX,y:myY,vx,vy,part});
+shootFlash=true; shootFlashT=120;
+// lokal mermi
+bullets.push({id:‘l_’+now,x:myX,y:myY,vx,vy,owner:myId,ownerTeam:myTeam,part,life:2000,local:true});
 }
 
-// ── Oyun döngüsü ────────────────────────────────────────────────────────────
-let gameRunning = false;
-let lastFrame = 0;
+// ── Update ────────────────────────────────────────────────────────────────
+let lastFrame=0, gameRunning=false;
 
-function gameLoop(ts) {
+function loop(ts) {
 if (!gameRunning) return;
-const dt = Math.min((ts - lastFrame), 50);
-lastFrame = ts;
-
-update(dt);
-render();
-requestAnimationFrame(gameLoop);
+const dt=Math.min(ts-lastFrame,50); lastFrame=ts;
+update(dt); render();
+requestAnimationFrame(loop);
 }
 
 function update(dt) {
 if (!alive) return;
 
-// WASD / Ok tuşları
-let dx = 0, dy = 0;
-if (keys[‘KeyW’] || keys[‘ArrowUp’])    dy -= 1;
-if (keys[‘KeyS’] || keys[‘ArrowDown’])  dy += 1;
-if (keys[‘KeyA’] || keys[‘ArrowLeft’])  dx -= 1;
-if (keys[‘KeyD’] || keys[‘ArrowRight’]) dx += 1;
-
-// Joystick
-dx += joystickMove.x;
-dy += joystickMove.y;
-
-// Normalize
-const mag = Math.sqrt(dx*dx + dy*dy);
-if (mag > 0) {
-dx /= mag; dy /= mag;
-const speed = CFG.PLAYER_SPEED * dt / 1000;
-const nx = myX + dx * speed;
-const ny = myY + dy * speed;
-if (!wallCollide(nx, myY, CFG.PLAYER_R)) myX = Math.max(20, Math.min(CFG.MAP_W-20, nx));
-if (!wallCollide(myX, ny, CFG.PLAYER_R)) myY = Math.max(20, Math.min(CFG.MAP_H-20, ny));
-anim = ‘walk’;
+// Hareket
+let dx=joyMove.x, dy=joyMove.y;
+if(keys[‘KeyW’]||keys[‘ArrowUp’])    dy-=1;
+if(keys[‘KeyS’]||keys[‘ArrowDown’])  dy+=1;
+if(keys[‘KeyA’]||keys[‘ArrowLeft’])  dx-=1;
+if(keys[‘KeyD’]||keys[‘ArrowRight’]) dx+=1;
+const mag=Math.sqrt(dx*dx+dy*dy);
+if(mag>0){
+const spd=CFG.SPEED*dt/1000;
+const nx=myX+(dx/mag)*spd, ny=myY+(dy/mag)*spd;
+if(!wallCollide(nx,myY,CFG.R)) myX=Math.max(20,Math.min(CFG.MAP_W-20,nx));
+if(!wallCollide(myX,ny,CFG.R)) myY=Math.max(20,Math.min(CFG.MAP_H-20,ny));
+if(!jumping) animState=‘walk’;
 } else {
-if (!jumping) anim = ‘idle’;
+if(!jumping&&animState!==‘shoot’) animState=‘idle’;
 }
 
-// Zıplama (2.5D görsel)
-if (jumping) {
-jumpVy += 0.5;
-jumpY2d += jumpVy;
-if (jumpY2d >= 0) { jumpY2d = 0; jumping = false; jumpVy = 0; anim = ‘idle’; }
+// Zıplama
+if(jumping){
+jumpVy+=0.55; jumpY+=jumpVy;
+if(jumpY>=0){ jumpY=0; jumping=false; jumpVy=0; }
 }
 
-// Ateş animasyonu
-if (shootAnim) anim = ‘shoot’;
+// Ateş animasyonu önceliği
+if(shootFlash) animState=‘shoot’;
+else if(!jumping&&mag===0) animState=‘idle’;
 
-// Spacebar zıplama
-if (keys[‘Space’] && !jumping) doJump();
-
-// Mouse izi (masaüstü)
-if (lastMouseX !== undefined) {
-myAngle = Math.atan2(lastMouseY - canvas.height/2, lastMouseX - canvas.width/2);
+// Klavye ateşi
+if((keys[‘KeyF’]||keys[‘ControlLeft’])&&alive){
+const tx=myX+Math.cos(myAngle)*200, ty=myY+Math.sin(myAngle)*200;
+tryShoot(tx,ty);
 }
 
-// Otomatik ateş (tuş)
-if ((keys[‘KeyF’] || keys[‘ControlLeft’]) && alive) {
-const tx = myX + Math.cos(myAngle) * 200;
-const ty = myY + Math.sin(myAngle) * 200;
-doShoot(tx, ty);
+// Mouse aim
+if(mouseOnCanvas){
+myAngle=Math.atan2(lastMouseY-canvas.height/2, lastMouseX-canvas.width/2);
 }
 
 // Kamera
-camX = myX - canvas.width/2;
-camY = myY - canvas.height/2 + jumpY2d;
-camX = Math.max(0, Math.min(CFG.MAP_W - canvas.width, camX));
-camY = Math.max(0, Math.min(CFG.MAP_H - canvas.height, camY));
+camX=Math.max(0,Math.min(CFG.MAP_W-canvas.width,  myX-canvas.width/2));
+camY=Math.max(0,Math.min(CFG.MAP_H-canvas.height, myY-canvas.height/2+jumpY));
 
-// Animasyon
-updateAnim(dt);
+tickAnim(dt);
 
-// Lokal mermiler
-const alive2 = [];
-for (const b of bullets) {
-if (!b.id.startsWith(‘local_’)) continue;
-b.x += b.vx * CFG.BULLET_SPEED * dt/1000;
-b.y += b.vy * CFG.BULLET_SPEED * dt/1000;
-b.life -= dt;
-if (b.life > 0 && !bulletHitsWall(b.x, b.y)) alive2.push(b);
+// Lokal mermi hareketi
+const keep=[];
+for(const b of bullets){
+if(!b.local){keep.push(b);continue;}
+b.x+=b.vx*CFG.BULLET_SPEED*dt/1000;
+b.y+=b.vy*CFG.BULLET_SPEED*dt/1000;
+b.life-=dt;
+if(b.life>0&&b.x>=0&&b.x<=CFG.MAP_W&&b.y>=0&&b.y<=CFG.MAP_H) keep.push(b);
 }
-bullets = bullets.filter(b => !b.id.startsWith(‘local_’)).concat(alive2);
+bullets=keep;
 
-// Sunucuya pozisyon gönder
-socket.emit(‘playerMove’, { x: myX, y: myY, angle: myAngle, anim });
+// Sunucu pozisyon
+socket.emit(‘move’,{x:myX,y:myY,angle:myAngle,anim:animState});
 
-// Güncelle local player snapshot
-if (players[myId]) {
-players[myId].x = myX;
-players[myId].y = myY;
-players[myId].angle = myAngle;
-players[myId].hp = myHp;
-players[myId].anim = anim;
-}
+// Local player güncelle
+if(players[myId]){ players[myId].x=myX; players[myId].y=myY; players[myId].angle=myAngle; players[myId].hp=myHp; players[myId].anim=animState; }
 
-// HUD
 updateHUD();
 }
 
-let lastMouseX, lastMouseY;
-document.addEventListener(‘mousemove’, e => {
-if (!canvas) return;
-const rect = canvas.getBoundingClientRect();
-lastMouseX = e.clientX - rect.left;
-lastMouseY = e.clientY - rect.top;
-});
-
 function render() {
-ctx.clearRect(0, 0, canvas.width, canvas.height);
-drawMap();
+ctx.clearRect(0,0,canvas.width,canvas.height);
+drawWorld();
 drawBullets();
 
 // Oyuncular
-for (const sid in players) {
-const p = players[sid];
-if (!p.alive) continue;
-const sx = p.x - camX;
-const sy = p.y - camY + (sid === myId ? jumpY2d : 0);
-if (sx < -60 || sx > canvas.width+60 || sy < -80 || sy > canvas.height+80) continue;
-drawSoldier(sx, sy, p.angle, p.team, p.hp, p.name, sid === myId, p.anim || ‘idle’, animFrame);
+for(const id in players){
+const p=players[id];
+if(!p.alive) continue;
+const sx=p.x-camX, sy=p.y-camY;
+const jy=id===myId?jumpY:0;
+if(sx<-80||sx>canvas.width+80||sy<-100||sy>canvas.height+100) continue;
+drawSoldier(sx,sy,p.angle,p.team,p.hp,p.name,id===myId,id===myId?animState:(p.anim||‘idle’),animFrame,jy);
 }
 
 drawMinimap();
 
-// Ölü ekran
-if (!alive) {
-ctx.fillStyle = ‘rgba(0,0,0,0.55)’;
-ctx.fillRect(0, 0, canvas.width, canvas.height);
-ctx.fillStyle = ‘#e74c3c’;
-ctx.font = ‘bold 48px Arial’;
-ctx.textAlign = ‘center’;
-ctx.fillText(‘ÖLDÜN!’, canvas.width/2, canvas.height/2 - 30);
-ctx.fillStyle = ‘#fff’;
-ctx.font = ‘24px Arial’;
-ctx.fillText(‘5 saniye içinde geri dönüyorsun…’, canvas.width/2, canvas.height/2 + 20);
+// Ölüm ekranı
+if(!alive){
+ctx.fillStyle=‘rgba(0,0,0,0.6)’; ctx.fillRect(0,0,canvas.width,canvas.height);
+ctx.fillStyle=’#e74c3c’; ctx.font=‘bold 52px Arial’; ctx.textAlign=‘center’;
+ctx.fillText(‘ÖLDÜN!’,canvas.width/2,canvas.height/2-20);
+ctx.fillStyle=’#fff’; ctx.font=‘22px Arial’;
+ctx.fillText(‘5 saniye içinde geri dönüyorsun…’,canvas.width/2,canvas.height/2+30);
 }
 }
 
-function updateHUD() {
-const hpEl = document.getElementById(‘hp-val’);
-if (hpEl) hpEl.textContent = myHp;
-const hpBar = document.getElementById(‘hp-bar-inner’);
-if (hpBar) hpBar.style.width = myHp + ‘%’;
-const hpBarEl = document.getElementById(‘hp-bar-inner’);
-if (hpBarEl) {
-hpBarEl.style.backgroundColor = myHp > 50 ? ‘#2ecc71’ : myHp > 25 ? ‘#f39c12’ : ‘#e74c3c’;
-}
-const killEl = document.getElementById(‘kills-val’);
-if (killEl) killEl.textContent = kills;
-const deathEl = document.getElementById(‘deaths-val’);
-if (deathEl) deathEl.textContent = deaths;
+function updateHUD(){
+const hv=document.getElementById(‘hp-val’); if(hv) hv.textContent=myHp;
+const hb=document.getElementById(‘hp-bar-inner’);
+if(hb){ hb.style.width=myHp+’%’; hb.style.background=myHp>50?’#27ae60’:myHp>25?’#e67e22’:’#e74c3c’; }
+const kv=document.getElementById(‘kills-val’); if(kv) kv.textContent=kills;
+const dv=document.getElementById(‘deaths-val’); if(dv) dv.textContent=deaths;
 }
 
-// ── Socket kurulumu ─────────────────────────────────────────────────────────
-function setupSocket() {
-socket = io(RENDER_URL, {
-reconnection: true,
-reconnectionAttempts: Infinity,
-reconnectionDelay: 1000,
-reconnectionDelayMax: 5000
+// ── Socket ────────────────────────────────────────────────────────────────
+function setupSocket(){
+socket=io(SERVER,{ reconnection:true, reconnectionAttempts:Infinity, reconnectionDelay:1000, reconnectionDelayMax:5000 });
+
+socket.on(‘connect’,()=>{
+document.getElementById(‘conn-status’).textContent=‘🟢 Bağlandı’;
+// Eğer önceden bir oyuna katıldıysak yeniden katıl
+if(myRoom){ socket.emit(‘join’,{name:playerName}); }
+});
+socket.on(‘disconnect’,()=>{ document.getElementById(‘conn-status’).textContent=‘🔴 Bağlantı kesildi…’; });
+socket.on(‘connect_error’,()=>{ document.getElementById(‘conn-status’).textContent=‘🟡 Yeniden bağlanıyor…’; });
+
+socket.on(‘joined’,d=>{
+myId=d.id; myTeam=d.team; myRoom=d.roomId;
+myX=d.x; myY=d.y; myHp=100; alive=true;
+players[myId]={id:myId,name:playerName,team:myTeam,x:myX,y:myY,angle:0,hp:100,alive:true,anim:‘idle’};
+document.getElementById(‘team-label’).textContent=myTeam===‘red’?‘🔴 KIRMIZI’:‘🔵 MAVİ’;
+document.getElementById(‘team-label’).style.color=myTeam===‘red’?’#e74c3c’:’#3498db’;
+document.getElementById(‘room-label’).textContent=’Oda: ’+myRoom;
 });
 
-socket.on(‘connect’, () => {
-connected = true;
-document.getElementById(‘conn-status’).textContent = ‘🟢 Bağlandı’;
-console.log(‘Socket bağlandı:’, socket.id);
+socket.on(‘allPlayers’,list=>{
+for(const p of list) players[p.id]=p;
 });
 
-socket.on(‘disconnect’, () => {
-connected = false;
-document.getElementById(‘conn-status’).textContent = ‘🔴 Bağlantı kesildi…’;
-});
-
-socket.on(‘connect_error’, () => {
-document.getElementById(‘conn-status’).textContent = ‘🟡 Yeniden bağlanıyor…’;
-});
-
-socket.on(‘joined’, data => {
-myId = data.playerId;
-myTeam = data.team;
-myRoom = data.roomId;
-myX = data.spawnX;
-myY = data.spawnY;
-myHp = 100;
-alive = true;
-document.getElementById(‘team-label’).textContent = myTeam === ‘red’ ? ‘🔴 KIRMIZI’ : ‘🔵 MAVİ’;
-document.getElementById(‘team-label’).style.color = myTeam === ‘red’ ? ‘#e74c3c’ : ‘#2980b9’;
-document.getElementById(‘room-label’).textContent = ’Oda: ’ + myRoom;
-players[myId] = { id: myId, name: playerName, team: myTeam, x: myX, y: myY, angle: 0, hp: 100, alive: true, anim: ‘idle’ };
-});
-
-socket.on(‘gameState’, state => {
-for (const sid in state.players) {
-if (sid === myId) continue;
-players[sid] = state.players[sid];
+socket.on(‘state’,d=>{
+for(const id in d.players){
+if(id===myId) continue;
+players[id]=d.players[id];
 }
-// Sunucu mermileri (başkaları)
-bullets = bullets.filter(b => b.id.startsWith(‘local_’));
-for (const b of (state.bullets || [])) {
-if (!b.owner || b.owner !== myId) bullets.push(b);
+// Sunucu mermi (başkalarınınki)
+bullets=bullets.filter(b=>b.local);
+for(const b of (d.bullets||[])){
+if(b.owner!==myId) bullets.push(b);
 }
 });
 
-socket.on(‘playerJoined’, p => {
-if (p.id !== myId) players[p.id] = p;
-showNotif(`${p.name} katıldı! (${p.team === 'red' ? '🔴' : '🔵'})`, p.team);
+socket.on(‘pJoin’,p=>{
+if(p.id!==myId){ players[p.id]=p; notify(`${p.name} katıldı!`,p.team); }
+});
+socket.on(‘pLeft’,id=>{
+const n=players[id]?.name||’’; delete players[id];
+if(n) notify(n+’ ayrıldı’,‘neutral’);
 });
 
-socket.on(‘playerLeft’, id => {
-if (players[id]) {
-showNotif(`${players[id].name} ayrıldı`, ‘neutral’);
-delete players[id];
-}
+socket.on(‘hit’,d=>{
+if(d.target===myId){ myHp=d.hp; if(players[myId]) players[myId].hp=myHp; showDmg(d.dmg,d.part); }
+else if(players[d.target]) players[d.target].hp=d.hp;
 });
 
-socket.on(‘playerHit’, data => {
-if (data.target === myId) {
-myHp = data.hp;
-if (players[myId]) players[myId].hp = myHp;
-showDamage(data.dmg, data.part);
-}
+socket.on(‘died’,d=>{
+if(d.id===myId){ alive=false; deaths++; }
+if(d.killer===myId){ kills++; notify(‘Öldürdün! 🎯’,‘green’); }
+if(players[d.id]) players[d.id].alive=false;
 });
 
-socket.on(‘playerDied’, data => {
-if (data.id === myId) {
-alive = false;
-deaths++;
-showNotif(‘Öldün! 5sn içinde respawn…’, ‘red’);
-}
-if (data.killer === myId) {
-kills++;
-showNotif(‘Öldürdün!’, ‘green’);
-}
-if (players[data.id]) players[data.id].alive = false;
+socket.on(‘respawn’,d=>{
+myX=d.x; myY=d.y; myHp=100; alive=true; jumping=false; jumpY=0;
+if(players[myId]){ players[myId].x=myX; players[myId].y=myY; players[myId].hp=100; players[myId].alive=true; }
+notify(‘Geri döndün!’,‘blue’);
 });
 
-socket.on(‘respawn’, data => {
-myX = data.x; myY = data.y;
-myHp = data.hp;
-alive = true;
-jumping = false; jumpY2d = 0;
-if (players[myId]) {
-players[myId].x = myX;
-players[myId].y = myY;
-players[myId].hp = myHp;
-players[myId].alive = true;
-}
-showNotif(‘Geri döndün!’, ‘blue’);
+socket.on(‘roomInfo’,d=>{
+document.getElementById(‘room-label’).textContent=`Oda: ${myRoom||''} 🔴${d.red} 🔵${d.blue}`;
 });
 
-socket.on(‘roomsList’, list => renderRoomsList(list));
-socket.on(‘roomUpdate’, info => {
-document.getElementById(‘room-label’).textContent = `Oda: ${info.id} | 🔴${info.red} 🔵${info.blue}`;
-});
-
-socket.on(‘bulletFired’, b => {
-if (b.owner !== myId) bullets.push({ …b, life: 2000 });
-});
+socket.on(‘roomsList’,list=>renderRooms(list));
 }
 
-function showNotif(msg, type) {
-const el = document.getElementById(‘notif’);
-if (!el) return;
-el.textContent = msg;
-el.className = ’notif show ’ + (type || ‘’);
-setTimeout(() => el.classList.remove(‘show’), 3000);
+function notify(msg,type){
+const el=document.getElementById(‘notif’);
+if(!el) return;
+el.textContent=msg; el.className=‘notif show ‘+(type||’’);
+clearTimeout(el._t); el._t=setTimeout(()=>el.classList.remove(‘show’),3000);
+}
+function showDmg(dmg,part){
+const el=document.getElementById(‘dmg-popup’);
+if(!el) return;
+const lbl={head:‘💀 KAFA!’,feet:‘🦵 Ayak’,body:‘💥 Gövde’};
+el.textContent=`-${dmg} ${lbl[part]||''}`;
+el.classList.remove(‘show’); void el.offsetWidth; el.classList.add(‘show’);
 }
 
-function showDamage(dmg, part) {
-const el = document.getElementById(‘damage-popup’);
-if (!el) return;
-const labels = { head: ‘💀 KAFa!’, feet: ‘🦵 Ayak’, body: ‘💥 Gövde’ };
-el.textContent = `-${dmg} ${labels[part] || ''}`;
-el.classList.add(‘show’);
-setTimeout(() => el.classList.remove(‘show’), 800);
-}
-
-// ── Oda listesi render ───────────────────────────────────────────────────────
-function renderRoomsList(list) {
-const el = document.getElementById(‘rooms-list’);
-if (!el) return;
-el.innerHTML = ‘’;
-if (list.length === 0) {
-el.innerHTML = ‘<div class="no-rooms">Henüz oda yok. İlk sen oluştur!</div>’;
-return;
-}
-for (const r of list) {
-const div = document.createElement(‘div’);
-div.className = ‘room-item’;
-const full = r.total >= 20;
-div.innerHTML = ` <div class="room-info"> <span class="room-name">🏠 ${r.id}</span> <span class="room-teams">🔴 ${r.red}/10 &nbsp; 🔵 ${r.blue}/10</span> </div> <button class="room-join-btn" onclick="joinSpecificRoom('${r.id}')" ${full ? 'disabled' : ''}>${full ? 'DOLU' : 'GİR'}</button>`;
-el.appendChild(div);
+function renderRooms(list){
+const el=document.getElementById(‘rooms-list’); if(!el) return;
+el.innerHTML=’’;
+if(!list.length){ el.innerHTML=’<div class="no-rooms">Henüz oda yok.</div>’; return; }
+for(const r of list){
+const full=(r.red+r.blue)>=20;
+const d=document.createElement(‘div’); d.className=‘room-item’;
+d.innerHTML=`<div class="room-info"><span class="room-name">🏠 ${r.id}</span><span class="room-teams">🔴${r.red}/10 🔵${r.blue}/10</span></div><button class="room-join-btn"${full?' disabled':''} onclick="doJoin()">${full?'DOLU':'GİR'}</button>`;
+el.appendChild(d);
 }
 }
 
-function joinSpecificRoom(roomId) {
-// Şimdilik direkt katıl (sunucu takım atar)
-joinGame();
-}
-
-// ── Oyunu başlat ────────────────────────────────────────────────────────────
-function joinGame() {
-socket.emit(‘joinGame’, { name: playerName, telegramId });
-showScreen(‘game-screen’);
-startGame();
-}
-
-function startGame() {
-canvas = document.getElementById(‘game-canvas’);
-ctx = canvas.getContext(‘2d’);
-miniCanvas = document.getElementById(‘minimap’);
-miniCtx = miniCanvas.getContext(‘2d’);
-resizeCanvas();
-window.addEventListener(‘resize’, resizeCanvas);
-generateMap();
-setupInput();
-gameRunning = true;
-lastFrame = performance.now();
-requestAnimationFrame(gameLoop);
-}
-
-function resizeCanvas() {
-if (!canvas) return;
-canvas.width  = window.innerWidth;
-canvas.height = window.innerHeight;
-}
-
-// ── Ekran geçişleri ─────────────────────────────────────────────────────────
-function showScreen(id) {
-document.querySelectorAll(’.screen’).forEach(s => s.classList.remove(‘active’));
+// ── Ekranlar ──────────────────────────────────────────────────────────────
+function showScreen(id){
+document.querySelectorAll(’.screen’).forEach(s=>s.classList.remove(‘active’));
 document.getElementById(id)?.classList.add(‘active’);
 }
 
-// ── DOMContentLoaded ─────────────────────────────────────────────────────────
-window.addEventListener(‘DOMContentLoaded’, () => {
-// Telegram kullanıcısı
-const tgUser = getTelegramUser();
-if (tgUser) {
-playerName = tgUser.name;
-telegramId = tgUser.id;
-document.getElementById(‘player-name-display’).textContent = playerName;
-document.getElementById(‘player-id-display’).textContent   = telegramId;
+function doJoin(){
+socket.emit(‘join’,{name:playerName});
+showScreen(‘game-screen’);
+if(!gameRunning) startGame();
 }
+
+function startGame(){
+canvas=document.getElementById(‘game-canvas’);
+ctx=canvas.getContext(‘2d’);
+miniCanvas=document.getElementById(‘minimap’);
+miniCtx=miniCanvas.getContext(‘2d’);
+resize(); window.addEventListener(‘resize’,resize);
+buildMap();
+setupInput();
+gameRunning=true;
+lastFrame=performance.now();
+requestAnimationFrame(loop);
+}
+
+function resize(){
+if(!canvas) return;
+canvas.width=window.innerWidth; canvas.height=window.innerHeight;
+}
+
+// ── İlk yükleme ───────────────────────────────────────────────────────────
+window.addEventListener(‘DOMContentLoaded’,()=>{
+initTelegram();
+
+// İsmi göster
+document.getElementById(‘player-name-display’).textContent=playerName;
 
 setupSocket();
 
-// Ana menü butonları
-document.getElementById(‘btn-find-game’).addEventListener(‘click’, () => {
-if (!playerName) playerName = document.getElementById(‘name-input’)?.value || ‘Asker’;
-joinGame();
-});
+document.getElementById(‘btn-find-game’).addEventListener(‘click’, doJoin);
+document.getElementById(‘btn-rooms’).addEventListener(‘click’,()=>{ showScreen(‘rooms-screen’); socket.emit(‘getRooms’); });
+document.getElementById(‘btn-create-room’).addEventListener(‘click’, doJoin);
+document.getElementById(‘btn-back-rooms’).addEventListener(‘click’,()=>showScreen(‘main-menu’));
+document.getElementById(‘btn-back-create’).addEventListener(‘click’,()=>showScreen(‘main-menu’));
+document.getElementById(‘btn-create-room-confirm’).addEventListener(‘click’, doJoin);
 
-document.getElementById(‘btn-rooms’).addEventListener(‘click’, () => {
-showScreen(‘rooms-screen’);
-socket.emit(‘getRooms’);
-});
-
-document.getElementById(‘btn-create-room’).addEventListener(‘click’, () => {
-if (!playerName) playerName = document.getElementById(‘name-input’)?.value || ‘Asker’;
-joinGame();
-});
-
-document.getElementById(‘btn-back-rooms’).addEventListener(‘click’, () => showScreen(‘main-menu’));
-document.getElementById(‘btn-back-create’).addEventListener(‘click’, () => showScreen(‘main-menu’));
-
-document.getElementById(‘btn-create-room-screen’).addEventListener(‘click’, () => {
-if (!playerName) playerName = document.getElementById(‘name-input’)?.value || ‘Asker’;
-joinGame();
-});
-
-// İsim girişi
-const nameInput = document.getElementById(‘name-input’);
-if (nameInput) {
-nameInput.addEventListener(‘input’, e => { playerName = e.target.value; });
-if (tgUser) { nameInput.value = tgUser.name; nameInput.disabled = true; }
-}
-
-// Keep-alive ping
-setInterval(() => {
-if (socket && socket.connected) socket.emit(‘ping’);
-}, 25000);
+document.addEventListener(‘contextmenu’,e=>e.preventDefault());
 });
