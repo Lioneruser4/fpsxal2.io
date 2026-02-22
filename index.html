@@ -3,504 +3,155 @@
 <html lang="tr">
 <head>
 <meta charset="UTF-8"/>
-<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, maximum-scale=1.0"/>
-<meta name="theme-color" content="#1a1a2e"/>
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no"/>
+<meta name="theme-color" content="#0d0d1a"/>
 <title>SAVAŞ OYUNU</title>
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
 <style>
-  /* ── Reset & Base ─────────────────────────────────────────────────── */
-  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-  html, body {
-    width: 100%; height: 100%;
-    overflow: hidden;
-    background: #0d0d1a;
-    font-family: 'Segoe UI', Arial, sans-serif;
-    color: #fff;
-    user-select: none;
-    -webkit-user-select: none;
-    touch-action: none;
-  }
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html,body{width:100%;height:100%;overflow:hidden;background:#0d0d1a;font-family:'Segoe UI',Arial,sans-serif;color:#fff;user-select:none;-webkit-user-select:none;touch-action:none}
 
-/* ── Ekranlar ─────────────────────────────────────────────────────── */
-.screen {
-position: fixed; inset: 0;
-display: none;
-flex-direction: column;
-align-items: center;
-justify-content: center;
-z-index: 10;
-}
-.screen.active { display: flex; }
+/* ── Ekranlar ─────────────────────────────────────────────── */
+.screen{position:fixed;inset:0;display:none;flex-direction:column;align-items:center;justify-content:center;z-index:10}
+.screen.active{display:flex}
 
-/* ── Ana Menü ─────────────────────────────────────────────────────── */
-#main-menu {
-background: radial-gradient(ellipse at center, #1a1a3e 0%, #0d0d1a 70%);
-}
-.menu-logo {
-font-size: clamp(28px, 8vw, 56px);
-font-weight: 900;
-letter-spacing: 4px;
-text-transform: uppercase;
-background: linear-gradient(135deg, #e74c3c, #f39c12, #e74c3c);
--webkit-background-clip: text;
--webkit-text-fill-color: transparent;
-background-clip: text;
-text-shadow: none;
-margin-bottom: 8px;
-filter: drop-shadow(0 0 20px rgba(231,76,60,0.5));
-}
-.menu-subtitle {
-font-size: clamp(12px, 3vw, 16px);
-color: #a0a0c0;
-letter-spacing: 6px;
-text-transform: uppercase;
-margin-bottom: 40px;
-}
-.player-badge {
-background: rgba(255,255,255,0.07);
-border: 1px solid rgba(255,255,255,0.15);
-border-radius: 12px;
-padding: 12px 24px;
-margin-bottom: 32px;
-text-align: center;
-backdrop-filter: blur(10px);
-}
-.player-badge .tg-name { font-size: 18px; font-weight: 700; color: #FFD700; }
-.player-badge .tg-id { font-size: 12px; color: #888; margin-top: 2px; }
-.name-row {
-display: flex; gap: 10px; margin-bottom: 28px;
-}
-.name-input {
-padding: 12px 18px;
-border-radius: 10px;
-border: 2px solid rgba(255,255,255,0.2);
-background: rgba(255,255,255,0.07);
-color: #fff;
-font-size: 16px;
-outline: none;
-width: 220px;
-transition: border 0.2s;
-}
-.name-input:focus { border-color: #e74c3c; }
-.name-input::placeholder { color: #666; }
-.name-input:disabled { opacity: 0.5; cursor: not-allowed; }
+/* ── ANA MENÜ ─────────────────────────────────────────────── */
+#main-menu{background:radial-gradient(ellipse at center,#1a1a3e 0%,#0d0d1a 70%)}
 
-.menu-btns { display: flex; flex-direction: column; gap: 14px; width: 280px; }
+.logo{
+font-size:clamp(32px,9vw,62px);
+font-weight:900;letter-spacing:4px;text-transform:uppercase;
+background:linear-gradient(135deg,#e74c3c 0%,#f39c12 50%,#e74c3c 100%);
+-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;
+filter:drop-shadow(0 0 24px rgba(231,76,60,0.55));
+margin-bottom:6px;
+}
+.logo-sub{font-size:clamp(11px,3vw,15px);color:#8080a0;letter-spacing:7px;text-transform:uppercase;margin-bottom:36px}
 
-.menu-btn {
-padding: 16px 32px;
-border-radius: 14px;
-border: none;
-font-size: 17px;
-font-weight: 800;
-letter-spacing: 2px;
-text-transform: uppercase;
-cursor: pointer;
-transition: transform 0.1s, box-shadow 0.2s, filter 0.2s;
-position: relative;
-overflow: hidden;
+.player-card{
+background:rgba(255,255,255,0.06);
+border:1px solid rgba(255,255,255,0.13);
+border-radius:14px;padding:14px 28px;margin-bottom:32px;
+text-align:center;backdrop-filter:blur(8px);
+min-width:220px;
 }
-.menu-btn::after {
-content: ‘’;
-position: absolute;
-inset: 0;
-background: linear-gradient(180deg, rgba(255,255,255,0.15) 0%, transparent 100%);
-pointer-events: none;
-}
-.menu-btn:active { transform: scale(0.96); }
+.player-card .pname{font-size:20px;font-weight:800;color:#FFD700}
+.player-card .psub{font-size:11px;color:#666;margin-top:3px}
 
-.btn-primary {
-background: linear-gradient(135deg, #e74c3c, #c0392b);
-color: #fff;
-box-shadow: 0 6px 24px rgba(231,76,60,0.45);
-}
-.btn-primary:active { box-shadow: 0 2px 8px rgba(231,76,60,0.3); }
-.btn-secondary {
-background: linear-gradient(135deg, #2980b9, #1a5276);
-color: #fff;
-box-shadow: 0 6px 24px rgba(41,128,185,0.4);
-}
-.btn-outline {
-background: transparent;
-color: #a0a0c0;
-border: 2px solid rgba(255,255,255,0.2);
-box-shadow: none;
-}
-.btn-outline:hover { border-color: rgba(255,255,255,0.4); color: #fff; }
+.menu-btns{display:flex;flex-direction:column;gap:13px;width:270px}
 
-.menu-stats {
-margin-top: 30px;
-display: flex; gap: 24px;
-font-size: 12px;
-color: #555;
+.mbtn{
+padding:15px 24px;border-radius:13px;border:none;
+font-size:16px;font-weight:800;letter-spacing:2px;text-transform:uppercase;
+cursor:pointer;transition:transform .1s,box-shadow .15s;position:relative;overflow:hidden;
 }
-.menu-stats span { display: flex; align-items: center; gap: 4px; }
+.mbtn::after{content:’’;position:absolute;inset:0;background:linear-gradient(180deg,rgba(255,255,255,0.13) 0%,transparent 100%);pointer-events:none}
+.mbtn:active{transform:scale(0.95)}
 
-/* ── Odalar Ekranı ────────────────────────────────────────────────── */
-#rooms-screen, #create-screen {
-background: rgba(13,13,26,0.97);
-padding: 24px;
-overflow-y: auto;
-}
-.screen-header {
-width: 100%; max-width: 600px;
-display: flex; align-items: center; gap: 16px;
-margin-bottom: 24px;
-}
-.screen-title { font-size: 22px; font-weight: 800; flex: 1; }
-.back-btn {
-background: rgba(255,255,255,0.08);
-border: 1px solid rgba(255,255,255,0.15);
-color: #fff;
-padding: 8px 18px;
-border-radius: 8px;
-cursor: pointer;
-font-size: 14px;
-transition: background 0.2s;
-}
-.back-btn:hover { background: rgba(255,255,255,0.15); }
+.mbtn-red{background:linear-gradient(135deg,#e74c3c,#c0392b);color:#fff;box-shadow:0 6px 22px rgba(231,76,60,0.42)}
+.mbtn-blue{background:linear-gradient(135deg,#2980b9,#1a5276);color:#fff;box-shadow:0 6px 22px rgba(41,128,185,0.38)}
+.mbtn-ghost{background:transparent;color:#888;border:2px solid rgba(255,255,255,0.15)}
+.mbtn-ghost:hover{border-color:rgba(255,255,255,0.35);color:#ccc}
 
-#rooms-list {
-width: 100%; max-width: 600px;
-display: flex; flex-direction: column; gap: 10px;
-}
-.room-item {
-background: rgba(255,255,255,0.06);
-border: 1px solid rgba(255,255,255,0.1);
-border-radius: 12px;
-padding: 14px 18px;
-display: flex; align-items: center; justify-content: space-between;
-transition: background 0.2s;
-}
-.room-item:hover { background: rgba(255,255,255,0.1); }
-.room-info { display: flex; flex-direction: column; gap: 4px; }
-.room-name { font-weight: 700; font-size: 14px; }
-.room-teams { font-size: 13px; color: #a0a0c0; }
-.room-join-btn {
-background: linear-gradient(135deg, #e74c3c, #c0392b);
-color: #fff;
-border: none;
-padding: 10px 20px;
-border-radius: 8px;
-font-weight: 700;
-cursor: pointer;
-font-size: 13px;
-transition: transform 0.1s;
-}
-.room-join-btn:disabled { background: #444; cursor: not-allowed; }
-.room-join-btn:not(:disabled):active { transform: scale(0.95); }
-.no-rooms { color: #555; font-size: 15px; text-align: center; padding: 40px; }
+.divider{width:100%;height:1px;background:rgba(255,255,255,0.07);margin:2px 0}
 
-/* ── Oda Oluştur Ekranı ──────────────────────────────────────────── */
-.create-form {
-width: 100%; max-width: 400px;
-display: flex; flex-direction: column; gap: 16px;
-}
-.form-group { display: flex; flex-direction: column; gap: 6px; }
-.form-label { font-size: 13px; color: #a0a0c0; font-weight: 600; }
-.form-select {
-padding: 12px 16px;
-background: rgba(255,255,255,0.07);
-border: 1px solid rgba(255,255,255,0.15);
-border-radius: 10px;
-color: #fff;
-font-size: 15px;
-}
+.tag-row{display:flex;gap:16px;margin-top:26px;font-size:12px;color:#444}
+.tag-row span{display:flex;align-items:center;gap:4px}
 
-/* ── Oyun Ekranı ──────────────────────────────────────────────────── */
-#game-screen { background: #000; }
-#game-canvas {
-position: absolute; inset: 0;
-width: 100%; height: 100%;
-display: block;
+/* ── ODALAR ───────────────────────────────────────────────── */
+#rooms-screen,#create-screen{
+background:rgba(10,10,22,0.98);padding:20px;overflow-y:auto;
+align-items:flex-start;justify-content:flex-start;
 }
+.screen-hdr{display:flex;align-items:center;gap:14px;margin-bottom:20px;width:100%;max-width:580px}
+.screen-hdr h2{flex:1;font-size:20px;font-weight:800}
+.back-btn{background:rgba(255,255,255,0.07);border:1px solid rgba(255,255,255,0.13);color:#ccc;padding:8px 16px;border-radius:8px;cursor:pointer;font-size:13px;transition:background .2s}
+.back-btn:hover{background:rgba(255,255,255,0.14)}
+.refresh-btn{background:rgba(255,255,255,0.07);border:1px solid rgba(255,255,255,0.13);color:#ccc;padding:8px 14px;border-radius:8px;cursor:pointer;font-size:15px}
 
-/* ── HUD ──────────────────────────────────────────────────────────── */
-#hud {
-position: absolute; inset: 0;
-pointer-events: none;
-z-index: 20;
-}
+#rooms-list{width:100%;max-width:580px;display:flex;flex-direction:column;gap:9px}
+.room-item{background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.09);border-radius:11px;padding:13px 16px;display:flex;align-items:center;justify-content:space-between;transition:background .18s}
+.room-item:hover{background:rgba(255,255,255,0.09)}
+.room-info{display:flex;flex-direction:column;gap:3px}
+.room-name{font-weight:700;font-size:13px}
+.room-teams{font-size:12px;color:#999}
+.room-join-btn{background:linear-gradient(135deg,#e74c3c,#c0392b);color:#fff;border:none;padding:9px 18px;border-radius:8px;font-weight:700;cursor:pointer;font-size:12px;transition:transform .1s}
+.room-join-btn:disabled{background:#3a3a3a;color:#666;cursor:not-allowed}
+.room-join-btn:not(:disabled):active{transform:scale(0.93)}
+.no-rooms{color:#555;font-size:14px;text-align:center;padding:40px;width:100%}
 
-/* Can barı */
-#hp-container {
-position: absolute;
-left: 50%; transform: translateX(-50%);
-bottom: 130px;
-display: flex; flex-direction: column; align-items: center; gap: 4px;
-pointer-events: none;
-}
-#hp-bar {
-width: 180px; height: 10px;
-background: rgba(0,0,0,0.5);
-border-radius: 5px;
-overflow: hidden;
-border: 1px solid rgba(255,255,255,0.2);
-}
-#hp-bar-inner {
-height: 100%;
-background: #2ecc71;
-border-radius: 5px;
-width: 100%;
-transition: width 0.3s, background-color 0.3s;
-}
-#hp-text {
-font-size: 13px;
-font-weight: 700;
-color: #fff;
-text-shadow: 1px 1px 3px #000;
-}
+/* ── ODA OLUŞTUR ──────────────────────────────────────────── */
+.create-form{display:flex;flex-direction:column;gap:14px;width:100%;max-width:380px}
+.flabel{font-size:12px;color:#888;font-weight:600;margin-bottom:3px}
+.fselect{width:100%;padding:11px 14px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.13);border-radius:9px;color:#fff;font-size:14px;outline:none}
 
-/* Üst bilgi */
-#top-hud {
-position: absolute;
-top: 0; left: 0; right: 0;
-display: flex; justify-content: space-between; align-items: flex-start;
-padding: 10px 14px;
-pointer-events: none;
-}
-.hud-pill {
-background: rgba(0,0,0,0.55);
-border: 1px solid rgba(255,255,255,0.12);
-border-radius: 8px;
-padding: 6px 12px;
-font-size: 13px;
-font-weight: 700;
-display: flex; flex-direction: column; gap: 2px;
-backdrop-filter: blur(4px);
-}
-#team-label { font-size: 15px; font-weight: 900; }
-#room-label { font-size: 11px; color: #aaa; }
-#conn-status { font-size: 11px; }
-.kd-box { text-align: right; }
-.kd-box span { font-size: 11px; color: #aaa; display: block; }
-.kd-box .kd-val { font-size: 16px; font-weight: 900; color: #FFD700; }
+/* ── OYUN ─────────────────────────────────────────────────── */
+#game-screen{background:#000;position:relative}
+#game-canvas{position:absolute;inset:0;width:100%;height:100%;display:block}
 
-/* Hasar popup */
-#damage-popup {
-position: absolute;
-top: 40%; left: 50%;
-transform: translate(-50%, -50%) scale(0);
-font-size: 28px;
-font-weight: 900;
-color: #e74c3c;
-text-shadow: 0 0 10px rgba(231,76,60,0.8), 2px 2px 0 #000;
-pointer-events: none;
-transition: transform 0.1s, opacity 0.4s;
-opacity: 0;
-z-index: 30;
-}
-#damage-popup.show {
-transform: translate(-50%, -50%) scale(1);
-opacity: 1;
-animation: dmgPop 0.8s ease forwards;
-}
-@keyframes dmgPop {
-0%   { transform: translate(-50%, -70%) scale(1.3); opacity: 1; }
-100% { transform: translate(-50%, -100%) scale(0.8); opacity: 0; }
-}
+/* ── HUD ──────────────────────────────────────────────────── */
+#hud{position:absolute;inset:0;pointer-events:none;z-index:20}
 
-/* Bildirim */
-#notif {
-position: absolute;
-top: 80px; left: 50%;
-transform: translateX(-50%) translateY(-20px);
-background: rgba(0,0,0,0.75);
-border: 1px solid rgba(255,255,255,0.15);
-border-radius: 10px;
-padding: 10px 20px;
-font-size: 14px;
-font-weight: 700;
-opacity: 0;
-transition: opacity 0.3s, transform 0.3s;
-pointer-events: none;
-z-index: 30;
-backdrop-filter: blur(4px);
-white-space: nowrap;
-}
-#notif.show { opacity: 1; transform: translateX(-50%) translateY(0); }
-#notif.red { color: #e74c3c; border-color: rgba(231,76,60,0.4); }
-#notif.green { color: #2ecc71; border-color: rgba(46,204,113,0.4); }
-#notif.blue { color: #3498db; border-color: rgba(52,152,219,0.4); }
+#top-hud{position:absolute;top:0;left:0;right:0;display:flex;justify-content:space-between;padding:10px 12px;pointer-events:none}
+.hpill{background:rgba(0,0,0,0.55);border:1px solid rgba(255,255,255,0.1);border-radius:9px;padding:7px 12px;font-size:13px;font-weight:700;display:flex;flex-direction:column;gap:2px;backdrop-filter:blur(4px)}
+#team-label{font-size:14px;font-weight:900}
+#room-label{font-size:11px;color:#999}
+#conn-status{font-size:10px}
+.kd-hud{text-align:right}
+.kd-hud small{font-size:10px;color:#888;display:block}
+.kd-val{font-size:16px;font-weight:900;color:#FFD700}
 
-/* Minimap */
-#minimap {
-position: absolute;
-top: 14px; right: 14px;
-width: 130px; height: 130px;
-border-radius: 10px;
-border: 2px solid rgba(255,255,255,0.2);
-background: rgba(0,0,0,0.4);
-pointer-events: none;
-z-index: 25;
-image-rendering: pixelated;
-}
-#minimap-label {
-position: absolute;
-top: 150px; right: 14px;
-font-size: 10px;
-color: rgba(255,255,255,0.5);
-pointer-events: none;
-z-index: 25;
-text-align: right;
-}
+/* can barı */
+#hp-wrap{position:absolute;left:50%;transform:translateX(-50%);bottom:140px;display:flex;flex-direction:column;align-items:center;gap:4px;pointer-events:none}
+#hp-bar{width:170px;height:9px;background:rgba(0,0,0,0.55);border-radius:5px;overflow:hidden;border:1px solid rgba(255,255,255,0.15)}
+#hp-bar-inner{height:100%;width:100%;background:#27ae60;border-radius:5px;transition:width .25s,background .25s}
+#hp-text{font-size:12px;font-weight:700;color:#fff;text-shadow:1px 1px 2px #000}
 
-/* ── Mobil Kontroller ─────────────────────────────────────────────── */
-#mobile-controls {
-position: absolute;
-bottom: 0; left: 0; right: 0;
-height: 180px;
-display: flex;
-align-items: center;
-justify-content: space-between;
-padding: 10px 20px 20px;
-pointer-events: none;
-z-index: 50;
-}
+#minimap{position:absolute;top:12px;right:12px;width:130px;height:130px;border-radius:9px;border:2px solid rgba(255,255,255,0.18);background:rgba(0,0,0,0.35);pointer-events:none;z-index:25;image-rendering:pixelated}
+#mm-label{position:absolute;top:147px;right:12px;font-size:9px;color:rgba(255,255,255,0.4);pointer-events:none;z-index:25;text-align:right}
 
-/* Sol joystick */
-#joystick {
-width: 110px; height: 110px;
-background: rgba(255,255,255,0.08);
-border: 2px solid rgba(255,255,255,0.2);
-border-radius: 50%;
-position: relative;
-pointer-events: all;
-flex-shrink: 0;
-backdrop-filter: blur(2px);
-}
-#joystick-knob {
-width: 46px; height: 46px;
-background: rgba(255,255,255,0.35);
-border: 2px solid rgba(255,255,255,0.5);
-border-radius: 50%;
-position: absolute;
-top: 50%; left: 50%;
-transform: translate(-50%, -50%);
-transition: transform 0.05s;
-box-shadow: 0 0 12px rgba(255,255,255,0.2);
-}
+/* hasar popup */
+#dmg-popup{position:absolute;top:38%;left:50%;transform:translate(-50%,-50%) scale(0);font-size:26px;font-weight:900;color:#e74c3c;text-shadow:0 0 10px rgba(231,76,60,.7),2px 2px 0 #000;pointer-events:none;opacity:0;z-index:30}
+#dmg-popup.show{animation:dmgAnim .8s ease forwards}
+@keyframes dmgAnim{0%{transform:translate(-50%,-60%) scale(1.2);opacity:1}100%{transform:translate(-50%,-110%) scale(.8);opacity:0}}
 
-/* Orta butonlar */
-#center-btns {
-display: flex;
-flex-direction: column;
-align-items: center;
-gap: 10px;
-pointer-events: all;
-}
-#jump-btn {
-width: 64px; height: 64px;
-background: rgba(46,204,113,0.25);
-border: 2px solid rgba(46,204,113,0.5);
-border-radius: 50%;
-font-size: 22px;
-color: #fff;
-cursor: pointer;
-display: flex; align-items: center; justify-content: center;
-font-weight: 900;
-transition: transform 0.1s, background 0.1s;
-backdrop-filter: blur(2px);
-}
-#jump-btn:active { transform: scale(0.9); background: rgba(46,204,113,0.5); }
+.notif{position:absolute;top:78px;left:50%;transform:translateX(-50%) translateY(-16px);background:rgba(0,0,0,0.72);border:1px solid rgba(255,255,255,0.13);border-radius:9px;padding:9px 18px;font-size:13px;font-weight:700;opacity:0;transition:opacity .3s,transform .3s;pointer-events:none;z-index:30;backdrop-filter:blur(4px);white-space:nowrap}
+.notif.show{opacity:1;transform:translateX(-50%) translateY(0)}
+.notif.red{color:#e74c3c;border-color:rgba(231,76,60,.35)}
+.notif.green{color:#2ecc71;border-color:rgba(46,204,113,.35)}
+.notif.blue{color:#3498db;border-color:rgba(52,152,219,.35)}
+.notif.neutral{color:#ccc}
 
-/* Aim joystick (sağ orta) */
-#aim-joystick {
-width: 90px; height: 90px;
-background: rgba(255,165,0,0.08);
-border: 2px solid rgba(255,165,0,0.25);
-border-radius: 50%;
-position: relative;
-pointer-events: all;
-flex-shrink: 0;
-backdrop-filter: blur(2px);
-}
-#aim-knob {
-width: 36px; height: 36px;
-background: rgba(255,165,0,0.35);
-border: 2px solid rgba(255,165,0,0.6);
-border-radius: 50%;
-position: absolute;
-top: 50%; left: 50%;
-transform: translate(-50%, -50%);
-transition: transform 0.05s;
-}
+#kb-hint{position:absolute;bottom:12px;left:50%;transform:translateX(-50%);font-size:10px;color:rgba(255,255,255,0.28);pointer-events:none;z-index:20;white-space:nowrap}
 
-/* Ateş butonu */
-#shoot-btn {
-width: 80px; height: 80px;
-background: radial-gradient(circle, rgba(231,76,60,0.6), rgba(192,57,43,0.8));
-border: 3px solid rgba(231,76,60,0.8);
-border-radius: 50%;
-font-size: 26px;
-color: #fff;
-cursor: pointer;
-display: flex; align-items: center; justify-content: center;
-font-weight: 900;
-transition: transform 0.08s, box-shadow 0.08s;
-pointer-events: all;
-flex-shrink: 0;
-box-shadow: 0 0 20px rgba(231,76,60,0.4);
-backdrop-filter: blur(2px);
-}
-#shoot-btn:active { transform: scale(0.88); box-shadow: 0 0 8px rgba(231,76,60,0.3); }
+/* ── Mobil kontroller ─────────────────────────────────────── */
+#mob-ctrl{position:absolute;bottom:0;left:0;right:0;height:185px;display:flex;align-items:center;justify-content:space-between;padding:8px 18px 22px;pointer-events:none;z-index:50}
 
-/* Kontrol etiketleri */
-.ctrl-label {
-font-size: 9px;
-color: rgba(255,255,255,0.4);
-text-align: center;
-margin-top: 2px;
-}
+.joy-wrap{display:flex;flex-direction:column;align-items:center;gap:3px;pointer-events:all}
+.ctrl-lbl{font-size:9px;color:rgba(255,255,255,0.38);text-align:center}
 
-/* ── Klavye ipucu ─────────────────────────────────────────────────── */
-#keyboard-hint {
-position: absolute;
-bottom: 14px; left: 50%;
-transform: translateX(-50%);
-font-size: 11px;
-color: rgba(255,255,255,0.3);
-pointer-events: none;
-z-index: 20;
-white-space: nowrap;
-}
+#joystick{width:108px;height:108px;background:rgba(255,255,255,0.07);border:2px solid rgba(255,255,255,0.18);border-radius:50%;position:relative;pointer-events:all;backdrop-filter:blur(2px)}
+#joy-knob{width:44px;height:44px;background:rgba(255,255,255,0.32);border:2px solid rgba(255,255,255,0.45);border-radius:50%;position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);box-shadow:0 0 10px rgba(255,255,255,0.12)}
 
-/* ── Responsive: mobil göster, masaüstü gizle ─────────────────────── */
-@media (hover: hover) and (pointer: fine) {
-#mobile-controls { display: none; }
-#keyboard-hint { display: block; }
-#hp-container { bottom: 20px; }
-}
-@media (hover: none) or (pointer: coarse) {
-#keyboard-hint { display: none; }
-}
+#center-col{display:flex;flex-direction:column;align-items:center;gap:10px;pointer-events:all}
+#jump-btn{width:62px;height:62px;background:rgba(46,204,113,0.22);border:2px solid rgba(46,204,113,0.45);border-radius:50%;font-size:24px;color:#fff;cursor:pointer;display:flex;align-items:center;justify-content:center;font-weight:900;transition:transform .1s,background .1s;backdrop-filter:blur(2px);pointer-events:all}
+#jump-btn:active{transform:scale(0.88);background:rgba(46,204,113,0.48)}
 
-/* ── Loading ──────────────────────────────────────────────────────── */
-#loading-overlay {
-position: fixed; inset: 0;
-background: #0d0d1a;
-display: flex; flex-direction: column;
-align-items: center; justify-content: center;
-z-index: 999;
-gap: 16px;
-}
-.loader-ring {
-width: 60px; height: 60px;
-border-radius: 50%;
-border: 4px solid rgba(231,76,60,0.2);
-border-top-color: #e74c3c;
-animation: spin 1s linear infinite;
-}
-@keyframes spin { to { transform: rotate(360deg); } }
-.loader-text { color: #a0a0c0; font-size: 14px; }
+#aim-joystick{width:88px;height:88px;background:rgba(255,165,0,0.07);border:2px solid rgba(255,165,0,0.22);border-radius:50%;position:relative;pointer-events:all;backdrop-filter:blur(2px)}
+#aim-knob{width:34px;height:34px;background:rgba(255,165,0,0.32);border:2px solid rgba(255,165,0,0.55);border-radius:50%;position:absolute;top:50%;left:50%;transform:translate(-50%,-50%)}
 
-/* ── Utility ──────────────────────────────────────────────────────── */
-.divider {
-width: 100%; max-width: 280px;
-height: 1px;
-background: rgba(255,255,255,0.08);
-margin: 4px 0;
-}
+#shoot-btn{width:78px;height:78px;background:radial-gradient(circle,rgba(231,76,60,.6),rgba(192,57,43,.85));border:3px solid rgba(231,76,60,.8);border-radius:50%;font-size:26px;color:#fff;cursor:pointer;display:flex;align-items:center;justify-content:center;font-weight:900;transition:transform .08s,box-shadow .08s;pointer-events:all;box-shadow:0 0 18px rgba(231,76,60,.38);backdrop-filter:blur(2px)}
+#shoot-btn:active{transform:scale(0.87);box-shadow:0 0 7px rgba(231,76,60,.28)}
+
+/* Masaüstü: mobil kontrolleri gizle */
+@media (hover:hover) and (pointer:fine){#mob-ctrl{display:none}#kb-hint{display:block}#hp-wrap{bottom:18px}}
+@media (hover:none),(pointer:coarse){#kb-hint{display:none}}
+
+/* ── Loading ──────────────────────────────────────────────── */
+#loading{position:fixed;inset:0;background:#0d0d1a;display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:999;gap:14px;transition:opacity .5s}
+.ring{width:56px;height:56px;border-radius:50%;border:4px solid rgba(231,76,60,.2);border-top-color:#e74c3c;animation:spin 1s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.loading-txt{color:#888;font-size:13px}
 </style>
 
 </head>
@@ -508,181 +159,154 @@ margin: 4px 0;
 
 <!-- Loading -->
 
-<div id="loading-overlay">
-  <div class="loader-ring"></div>
-  <div class="loader-text">Sunucuya bağlanıyor...</div>
+<div id="loading">
+  <div class="ring"></div>
+  <div class="loading-txt" id="load-txt">Sunucuya bağlanıyor...</div>
 </div>
 
-<!-- ── ANA MENÜ ────────────────────────────────────────────────────────── -->
+<!-- ════════════ ANA MENÜ ════════════ -->
 
 <div id="main-menu" class="screen">
-  <div class="menu-logo">⚔️ SAVAS</div>
-  <div class="menu-subtitle">Tactical FPS · Battle Arena</div>
+  <div class="logo">⚔️ SAVAŞ</div>
+  <div class="logo-sub">Tactical FPS · Multiplayer</div>
 
-  <div class="player-badge">
-    <div class="tg-name" id="player-name-display">Misafir Asker</div>
-    <div class="tg-id" id="player-id-display">Telegram bağlı değil</div>
-  </div>
-
-  <div class="name-row">
-    <input class="name-input" id="name-input" type="text" maxlength="16" placeholder="Kullanıcı adı..."/>
+  <div class="player-card">
+    <div class="pname" id="player-name-display">Yükleniyor...</div>
+    <div class="psub">Oyuncu</div>
   </div>
 
   <div class="menu-btns">
-    <button class="menu-btn btn-primary" id="btn-find-game">🎮 OYUN BUL</button>
+    <button class="mbtn mbtn-red" id="btn-find-game">🎮 OYUN BUL</button>
     <div class="divider"></div>
-    <button class="menu-btn btn-secondary" id="btn-rooms">🏠 ODALAR</button>
-    <button class="menu-btn btn-outline" id="btn-create-room">➕ ODA OLUŞTUR</button>
+    <button class="mbtn mbtn-blue" id="btn-rooms">🏠 ODALAR</button>
+    <button class="mbtn mbtn-ghost" id="btn-create-room">➕ ODA OLUŞTUR</button>
   </div>
 
-  <div class="menu-stats">
+  <div class="tag-row">
     <span>🔴 Kırmızı Takım</span>
-    <span>VS</span>
+    <span style="color:#555">VS</span>
     <span>🔵 Mavi Takım</span>
   </div>
 </div>
 
-<!-- ── ODALAR ─────────────────────────────────────────────────────────── -->
+<!-- ════════════ ODALAR ════════════ -->
 
 <div id="rooms-screen" class="screen">
-  <div class="screen-header">
+  <div class="screen-hdr">
     <button class="back-btn" id="btn-back-rooms">← Geri</button>
-    <div class="screen-title">🏠 Odalar</div>
-    <button class="back-btn" onclick="socket.emit('getRooms')">🔄</button>
+    <h2>🏠 Odalar</h2>
+    <button class="refresh-btn" onclick="socket.emit('getRooms')">🔄</button>
   </div>
-  <div id="rooms-list">
-    <div class="no-rooms">Yükleniyor...</div>
-  </div>
+  <div id="rooms-list"><div class="no-rooms">Yükleniyor...</div></div>
 </div>
 
-<!-- ── ODA OLUŞTUR ─────────────────────────────────────────────────────── -->
+<!-- ════════════ ODA OLUŞTUR ════════════ -->
 
 <div id="create-screen" class="screen">
-  <div class="screen-header">
+  <div class="screen-hdr">
     <button class="back-btn" id="btn-back-create">← Geri</button>
-    <div class="screen-title">➕ Oda Oluştur</div>
+    <h2>➕ Oda Oluştur</h2>
   </div>
   <div class="create-form">
-    <div class="form-group">
-      <div class="form-label">Takım boyutu</div>
-      <select class="form-select" id="team-size">
+    <div>
+      <div class="flabel">Takım boyutu</div>
+      <select class="fselect" id="team-size">
         <option value="5">5v5</option>
         <option value="10" selected>10v10</option>
       </select>
     </div>
-    <div class="form-group">
-      <div class="form-label">Mod</div>
-      <select class="form-select" id="game-mode">
-        <option value="dm">Deathmatch</option>
-        <option value="team">Takım Savaşı</option>
+    <div>
+      <div class="flabel">Oyun modu</div>
+      <select class="fselect">
+        <option>Takım Savaşı</option>
+        <option>Deathmatch</option>
       </select>
     </div>
-    <button class="menu-btn btn-primary" id="btn-create-room-screen" style="margin-top:12px">OLUŞTUR & GİR</button>
+    <button class="mbtn mbtn-red" id="btn-create-room-confirm" style="margin-top:8px">OLUŞTUR &amp; GİR</button>
   </div>
 </div>
 
-<!-- ── OYUN ───────────────────────────────────────────────────────────── -->
+<!-- ════════════ OYUN ════════════ -->
 
 <div id="game-screen" class="screen">
   <canvas id="game-canvas"></canvas>
   <canvas id="minimap" width="130" height="130"></canvas>
-  <div id="minimap-label">HARİTA</div>
-
-  <!-- HUD -->
+  <div id="mm-label">HARİTA</div>
 
   <div id="hud">
     <!-- Üst -->
     <div id="top-hud">
-      <div class="hud-pill">
-        <span id="team-label">🔴 KIRMIZI</span>
+      <div class="hpill">
+        <span id="team-label">— TAKIM —</span>
         <span id="room-label">Bağlanıyor...</span>
         <span id="conn-status">🟡 Bağlanıyor</span>
       </div>
-      <div class="hud-pill kd-box">
-        <span>Öldürme / Ölüm</span>
+      <div class="hpill kd-hud">
+        <small>Öldürme / Ölüm</small>
         <span><span id="kills-val" class="kd-val">0</span> / <span id="deaths-val">0</span></span>
       </div>
     </div>
 
 ```
-<!-- Can barı -->
-<div id="hp-container">
-  <div id="hp-bar">
-    <div id="hp-bar-inner"></div>
-  </div>
+<!-- Can -->
+<div id="hp-wrap">
+  <div id="hp-bar"><div id="hp-bar-inner"></div></div>
   <div id="hp-text">❤️ <span id="hp-val">100</span></div>
 </div>
 
-<!-- Damage popup -->
-<div id="damage-popup"></div>
-
-<!-- Bildirim -->
-<div id="notif"></div>
-
-<!-- Klavye ipucu -->
-<div id="keyboard-hint">WASD: Hareket &nbsp;|&nbsp; Mouse: Nişan &nbsp;|&nbsp; Sol Tık: Ateş &nbsp;|&nbsp; SPACE: Zıpla</div>
+<div id="dmg-popup"></div>
+<div id="notif" class="notif"></div>
+<div id="kb-hint">WASD: Hareket &nbsp;|&nbsp; Mouse: Nişan &nbsp;|&nbsp; Tık / F: Ateş &nbsp;|&nbsp; Space: Zıpla</div>
 ```
 
   </div>
 
-  <!-- Mobil Kontroller -->
+  <!-- Mobil -->
 
-  <div id="mobile-controls">
-    <!-- Sol: Hareket Joystick -->
-    <div style="display:flex;flex-direction:column;align-items:center;gap:2px">
-      <div id="joystick">
-        <div id="joystick-knob"></div>
-      </div>
-      <div class="ctrl-label">HAREKET</div>
+  <div id="mob-ctrl">
+    <div class="joy-wrap">
+      <div id="joystick"><div id="joy-knob"></div></div>
+      <div class="ctrl-lbl">HAREKET</div>
     </div>
 
 ```
-<!-- Orta: Zıpla -->
-<div id="center-btns">
-  <div style="display:flex;flex-direction:column;align-items:center;gap:2px">
+<div id="center-col">
+  <div class="joy-wrap">
     <div id="jump-btn">↑</div>
-    <div class="ctrl-label">ZIPLA</div>
+    <div class="ctrl-lbl">ZIPLA</div>
   </div>
 </div>
 
-<!-- Sağ orta: Aim -->
-<div style="display:flex;flex-direction:column;align-items:center;gap:2px">
-  <div id="aim-joystick">
-    <div id="aim-knob"></div>
-  </div>
-  <div class="ctrl-label">NİŞAN + ATEŞ</div>
+<div class="joy-wrap">
+  <div id="aim-joystick"><div id="aim-knob"></div></div>
+  <div class="ctrl-lbl">NİŞAN</div>
 </div>
 
-<!-- Sağ: Ateş -->
-<div style="display:flex;flex-direction:column;align-items:center;gap:2px">
+<div class="joy-wrap">
   <div id="shoot-btn">🔫</div>
-  <div class="ctrl-label">ATEŞ</div>
+  <div class="ctrl-lbl">ATEŞ</div>
 </div>
 ```
 
   </div>
 </div>
 
-<!-- Socket.IO -->
+<!-- Scripts -->
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.2/socket.io.min.js"></script>
-
-<!-- Oyun scripti -->
 
 <script src="game.js"></script>
 
 <script>
-  // Loading overlay kaldır (socket bağlandıktan sonra)
-  window.addEventListener('DOMContentLoaded', () => {
-    setTimeout(() => {
-      const ov = document.getElementById('loading-overlay');
-      if (ov) { ov.style.opacity = '0'; ov.style.transition = 'opacity 0.5s'; setTimeout(() => ov.remove(), 500); }
+  // Loading kaldır
+  window.addEventListener('DOMContentLoaded',()=>{
+    setTimeout(()=>{
+      const ov=document.getElementById('loading');
+      if(ov){ov.style.opacity='0';setTimeout(()=>ov.remove(),500);}
       document.getElementById('main-menu').classList.add('active');
-    }, 1200);
+    },1000);
   });
-
-  // Sağ tık engelle
-  document.addEventListener('contextmenu', e => e.preventDefault());
+  document.addEventListener('contextmenu',e=>e.preventDefault());
 </script>
 
 </body>
