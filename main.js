@@ -2,11 +2,9 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 
 // ═══════════════════════════════════════════════════════
-//  🔑 API KEY'LER
+//  🔒 Key yok! Sunucudaki /api/chat'e istek atıyoruz.
 // ═══════════════════════════════════════════════════════
-const GROQ_API_KEY   = "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";
-const GEMINI_API_KEY = "AQ.Ab8RN6ITN6hKdG8hF6n0rTxWBUeSviDluenkyiGKXJEUP2TTZg";
-const AI_PROVIDER    = "groq";   // "groq" | "gemini"
+const AI_PROVIDER = "groq";  // "groq" | "gemini"
 
 // ═══════════════════════════════════════════════════════
 //  Karakterler
@@ -62,7 +60,6 @@ controls.minDistance = 6;
 controls.maxDistance = 28;
 controls.enablePan = false;
 
-// Işıklar
 scene.add(new THREE.AmbientLight(0x404060, 1.5));
 scene.add(new THREE.HemisphereLight(0x8090ff, 0x201020, 0.8));
 
@@ -76,7 +73,6 @@ sun.shadow.camera.top = 30;
 sun.shadow.camera.bottom = -30;
 scene.add(sun);
 
-// Zemin
 const ground = new THREE.Mesh(
   new THREE.CircleGeometry(40, 64),
   new THREE.MeshStandardMaterial({ color: 0x0a0a14, roughness: 0.9, metalness: 0.1 })
@@ -255,7 +251,7 @@ CHARACTERS.forEach(char => {
 });
 
 // ═══════════════════════════════════════════════════════
-//  UI — Karakter kartları
+//  UI
 // ═══════════════════════════════════════════════════════
 const charBar = document.getElementById('charBar');
 let activeId = CHARACTERS[0].id;
@@ -302,13 +298,12 @@ const statusText = document.getElementById('statusText');
 const chatPanel = document.getElementById('chatPanel');
 const chatToggle = document.getElementById('chatToggle');
 
-// Sohbet panelini aç/kapa
 document.getElementById('chatHeader').addEventListener('click', () => {
   chatPanel.classList.toggle('collapsed');
   chatToggle.textContent = chatPanel.classList.contains('collapsed') ? 'kapat ▾' : 'aç ▴';
 });
 
-const history = {}; // id → [{role, content}]
+const history = {};
 CHARACTERS.forEach(c => history[c.id] = []);
 
 function addMessage(text, who, name) {
@@ -326,64 +321,35 @@ function addMessage(text, who, name) {
   return div;
 }
 
-async function callGroq(systemPrompt, hist, userMsg) {
-  const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+function setStatus(text, cls) {
+  statusText.textContent = text;
+  statusEl.className = cls;
+}
+
+// Sunucuya istek at (key sunucuda)
+async function askAI(char, userMsg, hist) {
+  const messages = [
+    ...hist,
+    { role: 'user', content: userMsg }
+  ];
+
+  const res = await fetch('/api/chat', {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${GROQ_API_KEY}`
-    },
+    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      model: 'llama-3.3-70b-versatile',
-      messages: [
-        { role: 'system', content: systemPrompt },
-        ...hist,
-        { role: 'user', content: userMsg }
-      ],
-      temperature: 0.8,
-      max_tokens: 200
+      system: char.personality,
+      messages,
+      provider: AI_PROVIDER
     })
   });
+
   if (!res.ok) {
-    const err = await res.text();
-    throw new Error(`Groq ${res.status}: ${err.slice(0, 200)}`);
+    const err = await res.json().catch(() => ({ error: res.statusText }));
+    throw new Error(err.error || `HTTP ${res.status}`);
   }
+
   const data = await res.json();
-  return data.choices[0].message.content.trim();
-}
-
-async function callGemini(systemPrompt, hist, userMsg) {
-  const contents = hist.map(h => ({
-    role: h.role === 'assistant' ? 'model' : 'user',
-    parts: [{ text: h.content }]
-  }));
-  contents.push({ role: 'user', parts: [{ text: userMsg }] });
-
-  const res = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_API_KEY}`,
-    {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        systemInstruction: { parts: [{ text: systemPrompt }] },
-        contents,
-        generationConfig: { temperature: 0.8, maxOutputTokens: 200 }
-      })
-    }
-  );
-  if (!res.ok) {
-    const err = await res.text();
-    throw new Error(`Gemini ${res.status}: ${err.slice(0, 200)}`);
-  }
-  const data = await res.json();
-  return data.candidates[0].content.parts[0].text.trim();
-}
-
-async function askAI(char, userMsg, hist) {
-  if (AI_PROVIDER === 'gemini' && GEMINI_API_KEY && GEMINI_API_KEY !== 'YOUR_GEMINI_KEY_HERE') {
-    return await callGemini(char.personality, hist, userMsg);
-  }
-  return await callGroq(char.personality, hist, userMsg);
+  return data.reply;
 }
 
 async function sendMessage(userText) {
@@ -420,11 +386,6 @@ async function sendMessage(userText) {
   } finally {
     sendBtn.disabled = false;
   }
-}
-
-function setStatus(text, cls) {
-  statusText.textContent = text;
-  statusEl.className = cls;
 }
 
 sendBtn.addEventListener('click', () => {
@@ -485,14 +446,11 @@ cmdInput.addEventListener('keydown', e => {
 });
 
 // ═══════════════════════════════════════════════════════
-//  Zıplama animasyonu
+//  Zıplama + render
 // ═══════════════════════════════════════════════════════
 const jumpAnims = [];
 function animateJump(obj) { jumpAnims.push({ obj, t: 0 }); }
 
-// ═══════════════════════════════════════════════════════
-//  Render döngüsü
-// ═══════════════════════════════════════════════════════
 const clock = new THREE.Clock();
 
 function animate() {
@@ -528,7 +486,6 @@ window.addEventListener('resize', () => {
   renderer.setSize(window.innerWidth, window.innerHeight);
 });
 
-// Başlat
 document.getElementById('loading').classList.add('hidden');
 setStatus('bağlı', 'ok');
 animate();
