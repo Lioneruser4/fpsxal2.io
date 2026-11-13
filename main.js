@@ -1,13 +1,18 @@
 // ═══════════════════════════════════════════════════════
-//  Ayarlar
+//  🔑 API KEY'LER (koda gömülü)
 // ═══════════════════════════════════════════════════════
-const AI_PROVIDER = "groq"; // "groq" | "gemini"
+const GROQ_API_KEY   = "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";
+const GEMINI_API_KEY = "AQ.Ab8RN6ITN6hKdG8hF6n0rTxWBUeSviDluenkyiGKXJEUP2TTZg";
+const AI_PROVIDER    = "groq"; // "groq" | "gemini"
 
+// ═══════════════════════════════════════════════════════
+//  Karakterler
+// ═══════════════════════════════════════════════════════
 const CHARACTERS = [
   {
     id: "luna", name: "Luna", role: "Sanatçı", emoji: "🎨",
     color: "#ff6ec7",
-    pos: { x: 25, y: 30 },      // yüzde cinsinden
+    pos: { x: 25, y: 30 },
     room: { x: 25, y: 30, label: "Atölye" },
     personality: "Sen Luna'sın, genç bir ressam. Duygusal, yaratıcı, şiirsel konuşursun. Kısa ve içten cevap ver."
   },
@@ -34,14 +39,10 @@ const CHARACTERS = [
   }
 ];
 
-// ═══════════════════════════════════════════════════════
-//  Dünya oluştur
-// ═══════════════════════════════════════════════════════
 const world = document.getElementById('world');
 const charEls = {};
 
 CHARACTERS.forEach(char => {
-  // Oda
   const room = document.createElement('div');
   room.className = 'room';
   room.style.left = char.room.x + '%';
@@ -55,7 +56,6 @@ CHARACTERS.forEach(char => {
   room.addEventListener('click', () => selectCharacter(char.id));
   world.appendChild(room);
 
-  // Karakter
   const c = document.createElement('div');
   c.className = 'char';
   c.style.left = char.pos.x + '%';
@@ -69,15 +69,9 @@ CHARACTERS.forEach(char => {
   c.addEventListener('click', () => selectCharacter(char.id));
   world.appendChild(c);
 
-  charEls[char.id] = {
-    root: c,
-    bubble: c.querySelector('.bubble')
-  };
+  charEls[char.id] = { root: c, bubble: c.querySelector('.bubble') };
 });
 
-// ═══════════════════════════════════════════════════════
-//  UI
-// ═══════════════════════════════════════════════════════
 const messagesEl = document.getElementById('messages');
 const chatInput = document.getElementById('chatInput');
 const sendBtn = document.getElementById('sendBtn');
@@ -91,10 +85,8 @@ let activeId = CHARACTERS[0].id;
 function selectCharacter(id) {
   activeId = id;
   const char = CHARACTERS.find(c => c.id === id);
-
   document.querySelectorAll('.char').forEach(el => el.classList.remove('active'));
   charEls[id].root.classList.add('active');
-
   document.getElementById('chatName').textContent = char.name;
   document.getElementById('chatRole').textContent = `· ${char.role}`;
 }
@@ -138,28 +130,69 @@ function showBubble(charId, text) {
 }
 
 // ═══════════════════════════════════════════════════════
-//  Sunucuya istek (key sunucuda, env var'da)
+//  Groq çağrısı
 // ═══════════════════════════════════════════════════════
-async function askAI(char, userMsg, hist) {
-  const messages = [...hist, { role: 'user', content: userMsg }];
-
-  const res = await fetch('/api/chat', {
+async function callGroq(systemPrompt, hist, userMsg) {
+  const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${GROQ_API_KEY}`
+    },
     body: JSON.stringify({
-      system: char.personality,
-      messages,
-      provider: AI_PROVIDER
+      model: 'llama-3.3-70b-versatile',
+      messages: [
+        { role: 'system', content: systemPrompt },
+        ...hist,
+        { role: 'user', content: userMsg }
+      ],
+      temperature: 0.8,
+      max_tokens: 200
     })
   });
-
   if (!res.ok) {
-    const err = await res.json().catch(() => ({ error: res.statusText }));
-    throw new Error(err.error || `HTTP ${res.status}`);
+    const err = await res.text();
+    throw new Error(`Groq ${res.status}: ${err.slice(0, 200)}`);
   }
-
   const data = await res.json();
-  return data.reply;
+  return data.choices[0].message.content.trim();
+}
+
+// ═══════════════════════════════════════════════════════
+//  Gemini çağrısı
+// ═══════════════════════════════════════════════════════
+async function callGemini(systemPrompt, hist, userMsg) {
+  const contents = hist.map(h => ({
+    role: h.role === 'assistant' ? 'model' : 'user',
+    parts: [{ text: h.content }]
+  }));
+  contents.push({ role: 'user', parts: [{ text: userMsg }] });
+
+  const res = await fetch(
+    `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_API_KEY}`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        systemInstruction: { parts: [{ text: systemPrompt }] },
+        contents,
+        generationConfig: { temperature: 0.8, maxOutputTokens: 200 }
+      })
+    }
+  );
+  if (!res.ok) {
+    const err = await res.text();
+    throw new Error(`Gemini ${res.status}: ${err.slice(0, 200)}`);
+  }
+  const data = await res.json();
+  return data.candidates[0].content.parts[0].text.trim();
+}
+
+async function askAI(char, userMsg, hist) {
+  if (AI_PROVIDER === 'gemini' && GEMINI_API_KEY.startsWith('AQ.')) {
+    return await callGemini(char.personality, hist, userMsg);
+  }
+  return await callGroq(char.personality, hist, userMsg);
 }
 
 async function sendMessage(userText) {
@@ -181,7 +214,7 @@ async function sendMessage(userText) {
     typing.textContent = reply;
 
     showBubble(char.id, reply);
-    setStatus('bağlı', 'ok');
+    setStatus('bağlı', '');
   } catch (e) {
     typing.classList.remove('typing');
     typing.textContent = `⚠️ ${e.message}`;
@@ -201,9 +234,6 @@ chatInput.addEventListener('keydown', e => {
   if (e.key === 'Enter') sendBtn.click();
 });
 
-// ═══════════════════════════════════════════════════════
-//  Emir kutusu
-// ═══════════════════════════════════════════════════════
 const cmdFab = document.getElementById('cmdFab');
 const cmdPanel = document.getElementById('cmdPanel');
 const cmdInput = document.getElementById('cmdInput');
@@ -227,7 +257,6 @@ cmdBtn.addEventListener('click', async () => {
     const prompt = `Kullanıcı sana şu emri verdi: "${cmd}". Bu emri yerine getiriyormuş gibi kısa bir tepki ver (1-2 cümle).`;
     const reply = await askAI(char, prompt, []);
 
-    // Küçük zıplama animasyonu
     const el = charEls[char.id].root;
     el.animate([
       { transform: 'translate(-50%, -50%) scale(1)' },
@@ -248,17 +277,5 @@ cmdInput.addEventListener('keydown', e => {
   if (e.key === 'Enter') cmdBtn.click();
 });
 
-// ═══════════════════════════════════════════════════════
-//  Başlat
-// ═══════════════════════════════════════════════════════
 document.getElementById('loading').classList.add('hidden');
-setStatus('bağlı', 'ok');
-
-// Sunucu sağlık kontrolü
-fetch('/api/health')
-  .then(r => r.json())
-  .then(d => {
-    if (d.ok) setStatus('bağlı', 'ok');
-    else setStatus('key yok', 'err');
-  })
-  .catch(() => setStatus('sunucu yok', 'err'));
+setStatus('hazır', '');
