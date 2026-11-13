@@ -4,7 +4,7 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 // ═══════════════════════════════════════════════════════
 //  API KEY'LERİNİ BURAYA YAZ (tırnak içine)
 // ═══════════════════════════════════════════════════════
-const GROQ_API_KEY   = "YOUR_GROQ_KEY_HERE";    // https://console.groq.com/keys
+const GROQ_API_KEY   = "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";    // https://console.groq.com/keys
 const GEMINI_API_KEY = "YOUR_GEMINI_KEY_HERE";  // https://aistudio.google.com/app/apikey
 const USE_GEMINI     = false;                   // true → Gemini kullan, false → Groq
 
