@@ -1,7 +1,6 @@
 {
   "name": "ai-karakter-odalari",
   "version": "1.0.0",
-  "description": "3D AI karakter odaları",
   "main": "server.js",
   "scripts": {
     "start": "node server.js"
