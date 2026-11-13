@@ -12,8 +12,6 @@
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
       user-select: none;
     }
-
-    /* ── 2D DÜNYA ── */
     #world {
       position: fixed; inset: 0; z-index: 1;
       background:
@@ -22,8 +20,6 @@
         #05050a;
       overflow: hidden;
     }
-
-    /* Izgara arka plan */
     #grid {
       position: absolute; inset: 0;
       background-image:
@@ -33,64 +29,45 @@
       mask-image: radial-gradient(circle at 50% 50%, #000 30%, transparent 80%);
       -webkit-mask-image: radial-gradient(circle at 50% 50%, #000 30%, transparent 80%);
     }
-
-    /* Odalar */
     .room {
-      position: absolute;
-      width: 150px; height: 150px;
+      position: absolute; width: 140px; height: 140px;
       border-radius: 50%;
       display: flex; flex-direction: column;
       align-items: center; justify-content: center;
       cursor: pointer;
-      transition: transform 0.3s, box-shadow 0.3s;
       transform: translate(-50%, -50%);
     }
-    @media (min-width: 600px) {
-      .room { width: 180px; height: 180px; }
-    }
-    .room:hover { transform: translate(-50%, -50%) scale(1.08); }
-    .room.active {
-      box-shadow: 0 0 0 3px currentColor, 0 0 40px currentColor;
-    }
+    @media (min-width: 600px) { .room { width: 170px; height: 170px; } }
     .room .floor {
       position: absolute; inset: 0; border-radius: 50%;
-      opacity: 0.25;
-      filter: blur(2px);
+      opacity: 0.25; filter: blur(2px);
     }
     .room .wall {
       position: absolute; inset: 15%;
-      border-radius: 50%;
-      border: 2px solid currentColor;
+      border-radius: 50%; border: 2px solid currentColor;
       opacity: 0.5;
     }
     .room .label {
       position: relative; z-index: 2;
-      font-size: 11px; font-weight: 700;
+      font-size: 10px; font-weight: 700;
       text-transform: uppercase; letter-spacing: 1px;
       padding: 3px 10px; border-radius: 10px;
       background: rgba(0,0,0,0.7);
       border: 1px solid currentColor;
     }
-
-    /* Karakterler */
     .char {
-      position: absolute;
-      width: 70px;
-      display: flex; flex-direction: column;
-      align-items: center;
+      position: absolute; width: 68px;
+      display: flex; flex-direction: column; align-items: center;
       cursor: pointer;
       transform: translate(-50%, -50%);
-      transition: transform 0.25s;
       z-index: 5;
     }
-    .char:active { transform: translate(-50%, -50%) scale(0.95); }
     .char .avatar {
-      width: 54px; height: 54px;
-      border-radius: 50%;
+      width: 52px; height: 52px; border-radius: 50%;
       display: flex; align-items: center; justify-content: center;
-      font-size: 26px;
+      font-size: 24px;
       border: 2.5px solid currentColor;
-      box-shadow: 0 0 20px currentColor, inset 0 0 15px rgba(255,255,255,0.15);
+      box-shadow: 0 0 20px currentColor;
       background: radial-gradient(circle at 30% 30%, rgba(255,255,255,0.25), transparent 70%);
       animation: bob 2.5s ease-in-out infinite;
     }
@@ -100,24 +77,16 @@
     }
     .char .name {
       font-size: 10px; font-weight: 700;
-      margin-top: 5px;
-      padding: 2px 8px; border-radius: 8px;
+      margin-top: 5px; padding: 2px 8px; border-radius: 8px;
       background: rgba(0,0,0,0.7);
       border: 1px solid rgba(255,255,255,0.15);
       white-space: nowrap;
     }
     .char.active .avatar {
-      box-shadow: 0 0 30px currentColor, 0 0 60px currentColor, inset 0 0 20px rgba(255,255,255,0.2);
+      box-shadow: 0 0 30px currentColor, 0 0 60px currentColor;
     }
-    .char.active .name {
-      background: currentColor;
-      color: #000;
-    }
-
-    /* Konuşma balonu */
     .char .bubble {
-      position: absolute;
-      bottom: 100%; left: 50%;
+      position: absolute; bottom: 100%; left: 50%;
       transform: translateX(-50%) translateY(-8px);
       max-width: 200px; min-width: 100px;
       padding: 10px 14px;
@@ -127,19 +96,16 @@
       box-shadow: 0 8px 30px rgba(0,0,0,0.5);
       opacity: 0; pointer-events: none;
       transition: opacity 0.3s;
-      white-space: normal;
       z-index: 10;
     }
     .char .bubble::after {
-      content: '';
-      position: absolute; top: 100%; left: 50%;
+      content: ''; position: absolute; top: 100%; left: 50%;
       transform: translateX(-50%);
       border: 8px solid transparent;
       border-top-color: #fff;
     }
     .char .bubble.show { opacity: 1; }
 
-    /* ── ÜST BAR ── */
     #topbar {
       position: fixed; top: 0; left: 0; right: 0; z-index: 20;
       padding: 12px 16px;
@@ -148,7 +114,7 @@
       pointer-events: none;
     }
     #topbar .logo {
-      font-size: 15px; font-weight: 800; letter-spacing: -0.5px;
+      font-size: 15px; font-weight: 800;
       background: linear-gradient(90deg,#7a7aff,#b080ff,#ff6ec7);
       -webkit-background-clip: text; background-clip: text; color: transparent;
     }
@@ -161,14 +127,10 @@
     }
     #serverStatus .dot {
       width: 7px; height: 7px; border-radius: 50%;
-      background: #fbbf24; box-shadow: 0 0 8px #fbbf24;
-      animation: pulse 1.5s infinite;
+      background: #4ade80; box-shadow: 0 0 10px #4ade80;
     }
-    #serverStatus.ok .dot { background: #4ade80; box-shadow: 0 0 10px #4ade80; animation: none; }
-    #serverStatus.err .dot { background: #f87171; box-shadow: 0 0 10px #f87171; animation: none; }
-    @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.4; } }
+    #serverStatus.err .dot { background: #f87171; box-shadow: 0 0 10px #f87171; }
 
-    /* ── SOHBET (ALT) ── */
     #chatPanel {
       position: fixed; left: 0; right: 0; bottom: 0; z-index: 30;
       background: linear-gradient(180deg, rgba(10,10,20,0.97), rgba(5,5,12,0.99));
@@ -178,10 +140,8 @@
       max-height: 50vh;
       display: flex; flex-direction: column;
       transition: transform 0.3s;
-      box-shadow: 0 -10px 40px rgba(0,0,0,0.6);
     }
     #chatPanel.collapsed { transform: translateY(calc(100% - 60px)); }
-
     #chatHeader {
       display: flex; align-items: center; justify-content: space-between;
       padding-bottom: 8px; margin-bottom: 6px;
@@ -194,7 +154,7 @@
       background: #4ade80; box-shadow: 0 0 10px #4ade80;
     }
     #chatHeader .who .name { font-size: 14px; font-weight: 700; }
-    #chatHeader .who .role { font-size: 11px; color: #8a8aa0; margin-left: 4px; }
+    #chatHeader .who .role { font-size: 11px; color: #8a8aa0; }
     #chatHeader .toggle { font-size: 11px; color: #7a7aff; font-weight: 600; }
 
     #messages {
@@ -203,28 +163,19 @@
       min-height: 70px; max-height: 28vh;
       -webkit-overflow-scrolling: touch;
     }
-    #messages::-webkit-scrollbar { width: 3px; }
-    #messages::-webkit-scrollbar-thumb { background: #3a3a5a; border-radius: 2px; }
     .msg {
       padding: 8px 12px; border-radius: 14px; max-width: 85%;
       font-size: 13px; line-height: 1.4;
-      animation: msgIn 0.2s ease-out;
       word-wrap: break-word;
-    }
-    @keyframes msgIn {
-      from { opacity: 0; transform: translateY(5px); }
-      to { opacity: 1; transform: translateY(0); }
     }
     .msg.user {
       align-self: flex-end;
       background: linear-gradient(135deg, #5a5aff, #7a3aff);
-      color: #fff; border-bottom-right-radius: 4px;
     }
     .msg.ai {
       align-self: flex-start;
       background: rgba(40,40,65,0.8);
-      color: #e0e0f0; border-bottom-left-radius: 4px;
-      border: 1px solid rgba(120,120,255,0.15);
+      border-bottom-left-radius: 4px;
     }
     .msg .name {
       font-size: 9px; opacity: 0.6; margin-bottom: 2px;
@@ -236,18 +187,15 @@
       40% { content: "··"; }
       60%,100% { content: "···"; }
     }
-
     #inputRow { display: flex; gap: 8px; margin-top: 8px; }
     #chatInput {
       flex: 1; background: rgba(30,30,50,0.9);
       border: 1.5px solid rgba(120,120,255,0.25);
       color: #fff; padding: 11px 14px;
       border-radius: 20px; font-size: 16px; outline: none;
-      font-family: inherit;
       -webkit-appearance: none;
     }
     #chatInput:focus { border-color: #7a7aff; }
-    #chatInput::placeholder { color: #6a6a8a; }
     #sendBtn {
       background: linear-gradient(135deg, #5a5aff, #b080ff);
       border: none; color: #fff;
@@ -255,12 +203,9 @@
       cursor: pointer; font-size: 17px;
       display: flex; align-items: center; justify-content: center;
       flex-shrink: 0;
-      box-shadow: 0 4px 14px rgba(90,90,255,0.4);
     }
-    #sendBtn:active { transform: scale(0.92); }
     #sendBtn:disabled { opacity: 0.4; }
 
-    /* ── EMİR BUTONU ── */
     #cmdFab {
       position: fixed; right: 14px; z-index: 25;
       bottom: calc(50vh + 12px);
@@ -270,10 +215,8 @@
       cursor: pointer;
       box-shadow: 0 6px 20px rgba(122,58,255,0.5);
       transition: all 0.3s;
-      display: flex; align-items: center; justify-content: center;
     }
     #cmdFab.active { transform: rotate(45deg); }
-
     #cmdPanel {
       position: fixed; right: 14px; z-index: 26;
       bottom: calc(50vh + 72px);
@@ -296,10 +239,9 @@
       border: 1.5px solid rgba(180,100,255,0.3);
       color: #fff; padding: 10px 12px;
       border-radius: 10px; font-size: 16px; outline: none;
-      font-family: inherit; margin-bottom: 8px;
+      margin-bottom: 8px;
       -webkit-appearance: none;
     }
-    #cmdInput:focus { border-color: #b080ff; }
     #cmdBtn {
       width: 100%; background: linear-gradient(135deg,#7a3aff,#b080ff);
       border: none; color: #fff; padding: 10px;
@@ -308,7 +250,6 @@
     }
     #cmdBtn:disabled { opacity: 0.4; }
 
-    /* ── YÜKLEME ── */
     #loading {
       position: fixed; inset: 0; z-index: 200;
       background: radial-gradient(circle at 50% 50%, #1a1a2e, #05050a);
@@ -342,12 +283,11 @@
 
   <div id="world">
     <div id="grid"></div>
-    <!-- Odalar ve karakterler JS ile eklenecek -->
   </div>
 
   <div id="topbar">
     <div class="logo">⚡ AI ROOMS</div>
-    <div id="serverStatus"><span class="dot"></span><span id="statusText">bağlanıyor</span></div>
+    <div id="serverStatus"><span class="dot"></span><span id="statusText">hazır</span></div>
   </div>
 
   <button id="cmdFab">⚡</button>
