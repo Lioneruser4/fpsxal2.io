@@ -1,11 +1,5 @@
 // ═══════════════════════════════════════════════════════
-//  🔑 API KEY'LER (koda gömülü)
-// ═══════════════════════════════════════════════════════
-const GROQ_API_KEY   = "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";
-const GEMINI_API_KEY = "AQ.Ab8RN6ITN6hKdG8hF6n0rTxWBUeSviDluenkyiGKXJEUP2TTZg";
-const AI_PROVIDER    = "groq"; // "groq" | "gemini"
 
-// ═══════════════════════════════════════════════════════
 //  Karakterler
 // ═══════════════════════════════════════════════════════
 const CHARACTERS = [
