@@ -2,56 +2,40 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 
 // ═══════════════════════════════════════════════════════
-//  API KEY'LERİNİ BURAYA YAZ (tırnak içine)
+//  🔑 API KEY'LER
 // ═══════════════════════════════════════════════════════
-const GROQ_API_KEY   = "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";    // https://console.groq.com/keys
-const GEMINI_API_KEY = "AQ.Ab8RN6ITN6hKdG8hF6n0rTxWBUeSviDluenkyiGKXJEUP2TTZg";  // https://aistudio.google.com/app/apikey
-const USE_GEMINI     = false;                   // true → Gemini kullan, false → Groq
+const GROQ_API_KEY   = "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";
+const GEMINI_API_KEY = "AQ.Ab8RN6ITN6hKdG8hF6n0rTxWBUeSviDluenkyiGKXJEUP2TTZg";
+const AI_PROVIDER    = "groq";   // "groq" | "gemini"
 
 // ═══════════════════════════════════════════════════════
-//  KARAKTERLER (kişilik + oda konumu)
+//  Karakterler
 // ═══════════════════════════════════════════════════════
 const CHARACTERS = [
   {
-    id: "luna",
-    name: "Luna",
-    role: "Sanatçı",
-    color: 0xff6ec7,
-    room: { x: -6, z: -4, label: "Atölye", color: 0x2a1a3a },
-    personality: "Sen Luna'sın, genç bir ressam. Duygusal, yaratıcı, şiirsel konuşursun. Renkler ve sanat hakkında tutkulusun. Kısa ve içten cevap ver.",
-    greeting: "Merhaba… atölyeme hoş geldin. Bugün hangi renk seni çağırıyor?"
+    id: "luna", name: "Luna", role: "Sanatçı", emoji: "🎨",
+    color: 0xff6ec7, room: { x: -7, z: -5, label: "Atölye", color: 0x2a1a3a },
+    personality: "Sen Luna'sın, genç bir ressam. Duygusal, yaratıcı, şiirsel konuşursun. Renkler ve sanat hakkında tutkulusun. Kısa ve içten cevap ver."
   },
   {
-    id: "kaptan",
-    name: "Kaptan Rex",
-    role: "Yazılımcı",
-    color: 0x4ade80,
-    room: { x: 6, z: -4, label: "Ofis", color: 0x1a2a1a },
-    personality: "Sen Kaptan Rex'sin, kıdemli bir yazılımcı. Mantıklı, doğrudan, esprili konuşursun. Kod ve teknoloji hakkında konuşmayı seversin. Kısa, net cevap ver.",
-    greeting: "Selam. Ofise hoş geldin. Bir bug mı var, yoksa fikir mi paylaşacaksın?"
+    id: "rex", name: "Kaptan Rex", role: "Yazılımcı", emoji: "💻",
+    color: 0x4ade80, room: { x: 7, z: -5, label: "Ofis", color: 0x1a2a1a },
+    personality: "Sen Kaptan Rex'sin, kıdemli yazılımcı. Mantıklı, doğrudan, esprili konuşursun. Kısa, net cevap ver."
   },
   {
-    id: "mira",
-    name: "Mira",
-    role: "Şef",
-    color: 0xffa94d,
-    room: { x: -6, z: 4, label: "Mutfak", color: 0x2a1a0a },
-    personality: "Sen Mira'sın, sıcakkanlı bir şef. Yemek, tat, koku üzerinden konuşursun. Misafirperver ve neşelisin. Kısa, samimi cevap ver.",
-    greeting: "Hoş geldin canım! Mutfağımda ne pişirsem diye düşünüyordum. Aç mısın?"
+    id: "mira", name: "Mira", role: "Şef", emoji: "🍳",
+    color: 0xffa94d, room: { x: -7, z: 5, label: "Mutfak", color: 0x2a1a0a },
+    personality: "Sen Mira'sın, sıcakkanlı bir şef. Yemek, tat, koku üzerinden konuşursun. Misafirperver ve neşelisin. Kısa, samimi cevap ver."
   },
   {
-    id: "atlas",
-    name: "Atlas",
-    role: "Filozof",
-    color: 0x7aaaff,
-    room: { x: 6, z: 4, label: "Kütüphane", color: 0x1a1a2a },
-    personality: "Sen Atlas'sın, sakin bir filozof. Derin, düşünceli, bazen gizemli konuşursun. Sorulara soruyla karşılık vermeyi seversin. Kısa ama anlamlı cevap ver.",
-    greeting: "Ah… geldin demek. Otur. Bugün zihnini ne meşgul ediyor?"
+    id: "atlas", name: "Atlas", role: "Filozof", emoji: "📚",
+    color: 0x7aaaff, room: { x: 7, z: 5, label: "Kütüphane", color: 0x1a1a2a },
+    personality: "Sen Atlas'sın, sakin bir filozof. Derin, düşünceli konuşursun. Kısa ama anlamlı cevap ver."
   }
 ];
 
 // ═══════════════════════════════════════════════════════
-//  THREE.JS SAHNE KURULUMU
+//  Three.js sahne
 // ═══════════════════════════════════════════════════════
 const canvas = document.getElementById('scene');
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
@@ -59,101 +43,106 @@ renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.1;
 
 const scene = new THREE.Scene();
-scene.background = new THREE.Color(0x0a0a12);
-scene.fog = new THREE.Fog(0x0a0a12, 20, 45);
+scene.background = new THREE.Color(0x05050a);
+scene.fog = new THREE.FogExp2(0x05050a, 0.018);
 
-const camera = new THREE.PerspectiveCamera(55, window.innerWidth / window.innerHeight, 0.1, 100);
-camera.position.set(0, 12, 18);
+const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 200);
+camera.position.set(0, 9, 16);
 
 const controls = new OrbitControls(camera, canvas);
 controls.target.set(0, 1, 0);
 controls.enableDamping = true;
 controls.dampingFactor = 0.08;
 controls.maxPolarAngle = Math.PI / 2.1;
-controls.minDistance = 8;
-controls.maxDistance = 32;
+controls.minDistance = 6;
+controls.maxDistance = 28;
+controls.enablePan = false;
 
-// Işık
-scene.add(new THREE.AmbientLight(0x404060, 1.2));
-const hemi = new THREE.HemisphereLight(0x8090ff, 0x201020, 0.6);
-scene.add(hemi);
-const sun = new THREE.DirectionalLight(0xffffff, 1.5);
+// Işıklar
+scene.add(new THREE.AmbientLight(0x404060, 1.5));
+scene.add(new THREE.HemisphereLight(0x8090ff, 0x201020, 0.8));
+
+const sun = new THREE.DirectionalLight(0xffffff, 1.8);
 sun.position.set(10, 20, 10);
 sun.castShadow = true;
 sun.shadow.mapSize.set(2048, 2048);
-sun.shadow.camera.left = -25;
-sun.shadow.camera.right = 25;
-sun.shadow.camera.top = 25;
-sun.shadow.camera.bottom = -25;
+sun.shadow.camera.left = -30;
+sun.shadow.camera.right = 30;
+sun.shadow.camera.top = 30;
+sun.shadow.camera.bottom = -30;
 scene.add(sun);
 
 // Zemin
-const groundGeo = new THREE.CircleGeometry(30, 64);
-const groundMat = new THREE.MeshStandardMaterial({ color: 0x14141f, roughness: 0.9 });
-const ground = new THREE.Mesh(groundGeo, groundMat);
+const ground = new THREE.Mesh(
+  new THREE.CircleGeometry(40, 64),
+  new THREE.MeshStandardMaterial({ color: 0x0a0a14, roughness: 0.9, metalness: 0.1 })
+);
 ground.rotation.x = -Math.PI / 2;
 ground.receiveShadow = true;
 scene.add(ground);
 
-// Izgara
-const grid = new THREE.GridHelper(60, 60, 0x2a2a4a, 0x1a1a2a);
-grid.material.opacity = 0.4;
+const grid = new THREE.GridHelper(80, 80, 0x2a2a4a, 0x15152a);
+grid.material.opacity = 0.35;
 grid.material.transparent = true;
+grid.position.y = 0.01;
 scene.add(grid);
 
 // ═══════════════════════════════════════════════════════
-//  ODA + KARAKTER OLUŞTURMA
+//  Oda oluşturma
 // ═══════════════════════════════════════════════════════
-const charMeshes = {};  // id → { group, head, roomMesh, bubble }
-
 function createRoom(room) {
   const g = new THREE.Group();
   g.position.set(room.x, 0, room.z);
 
-  // Oda zemini
   const floor = new THREE.Mesh(
-    new THREE.CircleGeometry(3.2, 32),
-    new THREE.MeshStandardMaterial({ color: room.color, roughness: 0.8 })
+    new THREE.CircleGeometry(3.4, 40),
+    new THREE.MeshStandardMaterial({ color: room.color, roughness: 0.7, metalness: 0.2 })
   );
   floor.rotation.x = -Math.PI / 2;
   floor.position.y = 0.02;
   floor.receiveShadow = true;
   g.add(floor);
 
-  // Oda ışığı (tavan)
-  const roomLight = new THREE.PointLight(room.color, 2, 8);
-  roomLight.position.set(0, 3, 0);
-  g.add(roomLight);
-
-  // Duvarlar (yarım daire)
-  const wallMat = new THREE.MeshStandardMaterial({
-    color: 0x1a1a2a, transparent: true, opacity: 0.6,
-    side: THREE.DoubleSide, roughness: 0.9
-  });
-  const wall = new THREE.Mesh(
-    new THREE.CylinderGeometry(3.5, 3.5, 2.5, 32, 1, true, 0, Math.PI * 1.5),
-    wallMat
+  const ring = new THREE.Mesh(
+    new THREE.RingGeometry(3.3, 3.5, 48),
+    new THREE.MeshBasicMaterial({ color: room.color, side: THREE.DoubleSide, transparent: true, opacity: 0.6 })
   );
-  wall.position.y = 1.25;
+  ring.rotation.x = -Math.PI / 2;
+  ring.position.y = 0.03;
+  g.add(ring);
+
+  const wall = new THREE.Mesh(
+    new THREE.CylinderGeometry(3.6, 3.6, 2.8, 40, 1, true, Math.PI * 0.75, Math.PI * 1.5),
+    new THREE.MeshStandardMaterial({
+      color: 0x1a1a2a, transparent: true, opacity: 0.5,
+      side: THREE.DoubleSide, roughness: 0.9
+    })
+  );
+  wall.position.y = 1.4;
   g.add(wall);
 
-  // Oda etiketi (sprite)
-  const canvas2d = document.createElement('canvas');
-  canvas2d.width = 256; canvas2d.height = 64;
-  const ctx = canvas2d.getContext('2d');
-  ctx.fillStyle = 'rgba(0,0,0,0.6)';
-  ctx.roundRect(0, 0, 256, 64, 16);
-  ctx.fill();
-  ctx.fillStyle = '#ffffff';
-  ctx.font = 'bold 28px system-ui';
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'middle';
-  ctx.fillText(room.label, 128, 32);
-  const tex = new THREE.CanvasTexture(canvas2d);
-  const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, transparent: true }));
-  sprite.position.set(0, 4, 0);
+  const roomLight = new THREE.PointLight(room.color, 2.5, 9);
+  roomLight.position.set(0, 3.2, 0);
+  g.add(roomLight);
+
+  const cv = document.createElement('canvas');
+  cv.width = 256; cv.height = 64;
+  const c = cv.getContext('2d');
+  c.fillStyle = 'rgba(0,0,0,0.75)';
+  c.roundRect(8, 8, 240, 48, 24); c.fill();
+  c.strokeStyle = '#7a7aff'; c.lineWidth = 2; c.stroke();
+  c.fillStyle = '#fff';
+  c.font = 'bold 22px system-ui';
+  c.textAlign = 'center'; c.textBaseline = 'middle';
+  c.fillText(room.label, 128, 32);
+  const sprite = new THREE.Sprite(new THREE.SpriteMaterial({
+    map: new THREE.CanvasTexture(cv), transparent: true, depthTest: false
+  }));
+  sprite.position.set(0, 4.2, 0);
   sprite.scale.set(2.4, 0.6, 1);
   g.add(sprite);
 
@@ -161,79 +150,86 @@ function createRoom(room) {
   return g;
 }
 
+// ═══════════════════════════════════════════════════════
+//  Karakter oluşturma
+// ═══════════════════════════════════════════════════════
+const charObjs = {};
+
 function createCharacter(char) {
   const group = new THREE.Group();
-  group.position.set(char.room.x + (Math.random() * 2 - 1), 0, char.room.z + (Math.random() * 2 - 1));
+  group.position.set(char.room.x, 0, char.room.z);
 
-  // Gövde
-  const bodyMat = new THREE.MeshStandardMaterial({ color: char.color, roughness: 0.5, metalness: 0.2 });
-  const body = new THREE.Mesh(new THREE.CapsuleGeometry(0.45, 0.9, 8, 16), bodyMat);
-  body.position.y = 0.95;
+  const body = new THREE.Mesh(
+    new THREE.CapsuleGeometry(0.5, 1.0, 12, 24),
+    new THREE.MeshStandardMaterial({ color: char.color, roughness: 0.4, metalness: 0.3, emissive: char.color, emissiveIntensity: 0.15 })
+  );
+  body.position.y = 1.05;
   body.castShadow = true;
   group.add(body);
 
-  // Kafa
-  const headMat = new THREE.MeshStandardMaterial({ color: 0xffe0c0, roughness: 0.6 });
-  const head = new THREE.Mesh(new THREE.SphereGeometry(0.42, 24, 24), headMat);
-  head.position.y = 1.85;
+  const head = new THREE.Mesh(
+    new THREE.SphereGeometry(0.45, 32, 32),
+    new THREE.MeshStandardMaterial({ color: 0xffdcc0, roughness: 0.6 })
+  );
+  head.position.y = 2.05;
   head.castShadow = true;
   group.add(head);
 
-  // Gözler
   const eyeMat = new THREE.MeshStandardMaterial({ color: 0x0a0a12 });
-  const eyeL = new THREE.Mesh(new THREE.SphereGeometry(0.06, 12, 12), eyeMat);
-  eyeL.position.set(-0.15, 1.9, 0.36);
+  const eyeL = new THREE.Mesh(new THREE.SphereGeometry(0.07, 12, 12), eyeMat);
+  eyeL.position.set(-0.16, 2.1, 0.4);
   const eyeR = eyeL.clone();
-  eyeR.position.x = 0.15;
+  eyeR.position.x = 0.16;
   group.add(eyeL, eyeR);
 
-  // İsim etiketi
+  const glow = new THREE.Mesh(
+    new THREE.RingGeometry(0.7, 1.0, 32),
+    new THREE.MeshBasicMaterial({ color: char.color, side: THREE.DoubleSide, transparent: true, opacity: 0.5 })
+  );
+  glow.rotation.x = -Math.PI / 2;
+  glow.position.y = 0.04;
+  group.add(glow);
+
   const cv = document.createElement('canvas');
   cv.width = 256; cv.height = 64;
   const c = cv.getContext('2d');
-  c.fillStyle = 'rgba(0,0,0,0.7)';
-  c.roundRect(0, 0, 256, 64, 16);
-  c.fill();
-  c.fillStyle = '#ffffff';
-  c.font = 'bold 28px system-ui';
-  c.textAlign = 'center';
-  c.textBaseline = 'middle';
+  c.fillStyle = 'rgba(0,0,0,0.75)';
+  c.roundRect(8, 8, 240, 48, 24); c.fill();
+  c.strokeStyle = '#7a7aff'; c.lineWidth = 2; c.stroke();
+  c.fillStyle = '#fff';
+  c.font = 'bold 22px system-ui';
+  c.textAlign = 'center'; c.textBaseline = 'middle';
   c.fillText(char.name, 128, 32);
   const nameSprite = new THREE.Sprite(new THREE.SpriteMaterial({
     map: new THREE.CanvasTexture(cv), transparent: true
   }));
-  nameSprite.position.set(0, 2.7, 0);
-  nameSprite.scale.set(1.8, 0.45, 1);
+  nameSprite.position.set(0, 3.0, 0);
+  nameSprite.scale.set(1.9, 0.5, 1);
   group.add(nameSprite);
 
-  // Konuşma balonu
   const bubble = new THREE.Sprite(new THREE.SpriteMaterial({
     map: makeBubbleTexture("Merhaba!"), transparent: true, depthTest: false
   }));
-  bubble.position.set(0, 3.4, 0);
-  bubble.scale.set(3, 0.9, 1);
+  bubble.position.set(0, 3.7, 0);
+  bubble.scale.set(3.2, 0.95, 1);
   bubble.visible = false;
   group.add(bubble);
 
   scene.add(group);
-  return { group, head, bubble };
+  return { group, head, body, bubble };
 }
 
 function makeBubbleTexture(text) {
   const cv = document.createElement('canvas');
   cv.width = 512; cv.height = 160;
   const c = cv.getContext('2d');
-  c.fillStyle = 'rgba(20,20,40,0.95)';
-  c.roundRect(10, 10, 492, 120, 30);
-  c.fill();
-  c.strokeStyle = 'rgba(150,150,255,0.6)';
-  c.lineWidth = 3;
-  c.stroke();
-  c.fillStyle = '#ffffff';
-  c.font = 'bold 26px system-ui';
-  c.textAlign = 'center';
-  c.textBaseline = 'middle';
-  wrapText(c, text, 256, 70, 460, 30);
+  c.fillStyle = 'rgba(20,20,40,0.96)';
+  c.roundRect(10, 10, 492, 120, 30); c.fill();
+  c.strokeStyle = 'rgba(150,150,255,0.7)'; c.lineWidth = 3; c.stroke();
+  c.fillStyle = '#fff';
+  c.font = 'bold 24px system-ui';
+  c.textAlign = 'center'; c.textBaseline = 'middle';
+  wrapText(c, text, 256, 70, 460, 28);
   return new THREE.CanvasTexture(cv);
 }
 
@@ -253,55 +249,67 @@ function wrapText(ctx, text, x, y, maxWidth, lineHeight) {
   lines.slice(0, 3).forEach((l, i) => ctx.fillText(l, x, startY + i * lineHeight));
 }
 
-// Odaları ve karakterleri sahneye ekle
 CHARACTERS.forEach(char => {
   createRoom(char.room);
-  charMeshes[char.id] = createCharacter(char);
+  charObjs[char.id] = createCharacter(char);
 });
 
 // ═══════════════════════════════════════════════════════
-//  UI — KARAKTER SEÇİCİ
+//  UI — Karakter kartları
 // ═══════════════════════════════════════════════════════
 const charBar = document.getElementById('charBar');
-let activeCharId = CHARACTERS[0].id;
+let activeId = CHARACTERS[0].id;
 
 CHARACTERS.forEach(char => {
-  const btn = document.createElement('button');
-  btn.className = 'charBtn';
-  btn.textContent = char.name;
-  btn.dataset.id = char.id;
-  btn.addEventListener('click', () => selectCharacter(char.id));
-  charBar.appendChild(btn);
+  const card = document.createElement('div');
+  card.className = 'charCard';
+  card.dataset.id = char.id;
+  card.innerHTML = `
+    <div class="avatar" style="background: linear-gradient(135deg, #${char.color.toString(16).padStart(6,'0')}, #7a7aff)">${char.emoji}</div>
+    <div class="info">
+      <span class="n">${char.name}</span>
+      <span class="r">${char.role}</span>
+    </div>
+  `;
+  card.addEventListener('click', () => selectCharacter(char.id));
+  charBar.appendChild(card);
 });
 
 function selectCharacter(id) {
-  activeCharId = id;
-  document.querySelectorAll('.charBtn').forEach(b =>
-    b.classList.toggle('active', b.dataset.id === id)
+  activeId = id;
+  document.querySelectorAll('.charCard').forEach(c =>
+    c.classList.toggle('active', c.dataset.id === id)
   );
   const char = CHARACTERS.find(c => c.id === id);
-  document.getElementById('chatTitle').textContent = `${char.name} — ${char.role}`;
+  document.getElementById('chatName').textContent = char.name;
+  document.getElementById('chatRole').textContent = `· ${char.role}`;
 
-  // Kamerayı karaktere yaklaştır
-  const m = charMeshes[id].group.position;
+  const m = charObjs[id].group.position;
   controls.target.set(m.x, 1.2, m.z);
-  camera.position.set(m.x + 4, 4.5, m.z + 6);
+  camera.position.set(m.x + 5, 5.5, m.z + 8);
 }
 
-// İlk seçimi yap
-selectCharacter(activeCharId);
+selectCharacter(activeId);
 
 // ═══════════════════════════════════════════════════════
-//  SOHBET
+//  Sohbet
 // ═══════════════════════════════════════════════════════
 const messagesEl = document.getElementById('messages');
 const chatInput = document.getElementById('chatInput');
 const sendBtn = document.getElementById('sendBtn');
-const statusEl = document.getElementById('status');
+const statusEl = document.getElementById('serverStatus');
+const statusText = document.getElementById('statusText');
+const chatPanel = document.getElementById('chatPanel');
+const chatToggle = document.getElementById('chatToggle');
 
-const conversationHistory = {}; // id → [{role, content}]
+// Sohbet panelini aç/kapa
+document.getElementById('chatHeader').addEventListener('click', () => {
+  chatPanel.classList.toggle('collapsed');
+  chatToggle.textContent = chatPanel.classList.contains('collapsed') ? 'kapat ▾' : 'aç ▴';
+});
 
-CHARACTERS.forEach(c => conversationHistory[c.id] = []);
+const history = {}; // id → [{role, content}]
+CHARACTERS.forEach(c => history[c.id] = []);
 
 function addMessage(text, who, name) {
   const div = document.createElement('div');
@@ -318,7 +326,7 @@ function addMessage(text, who, name) {
   return div;
 }
 
-async function callGroq(systemPrompt, history, userMsg) {
+async function callGroq(systemPrompt, hist, userMsg) {
   const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
     method: 'POST',
     headers: {
@@ -329,7 +337,7 @@ async function callGroq(systemPrompt, history, userMsg) {
       model: 'llama-3.3-70b-versatile',
       messages: [
         { role: 'system', content: systemPrompt },
-        ...history,
+        ...hist,
         { role: 'user', content: userMsg }
       ],
       temperature: 0.8,
@@ -344,8 +352,8 @@ async function callGroq(systemPrompt, history, userMsg) {
   return data.choices[0].message.content.trim();
 }
 
-async function callGemini(systemPrompt, history, userMsg) {
-  const contents = history.map(h => ({
+async function callGemini(systemPrompt, hist, userMsg) {
+  const contents = hist.map(h => ({
     role: h.role === 'assistant' ? 'model' : 'user',
     parts: [{ text: h.content }]
   }));
@@ -371,52 +379,52 @@ async function callGemini(systemPrompt, history, userMsg) {
   return data.candidates[0].content.parts[0].text.trim();
 }
 
+async function askAI(char, userMsg, hist) {
+  if (AI_PROVIDER === 'gemini' && GEMINI_API_KEY && GEMINI_API_KEY !== 'YOUR_GEMINI_KEY_HERE') {
+    return await callGemini(char.personality, hist, userMsg);
+  }
+  return await callGroq(char.personality, hist, userMsg);
+}
+
 async function sendMessage(userText) {
-  const char = CHARACTERS.find(c => c.id === activeCharId);
-  const mesh = charMeshes[char.id];
+  const char = CHARACTERS.find(c => c.id === activeId);
+  const mesh = charObjs[char.id];
 
   addMessage(userText, 'user', 'Sen');
-
   const typing = addMessage('', 'ai', char.name);
   typing.classList.add('typing');
 
   sendBtn.disabled = true;
-  statusEl.textContent = 'düşünüyor…';
-  statusEl.className = '';
+  setStatus('düşünüyor', '');
 
   try {
-    const history = conversationHistory[char.id];
-    let reply;
-    if (USE_GEMINI && GEMINI_API_KEY !== 'YOUR_GEMINI_KEY_HERE') {
-      reply = await callGemini(char.personality, history, userText);
-    } else {
-      reply = await callGroq(char.personality, history, userText);
-    }
-
-    history.push({ role: 'user', content: userText });
-    history.push({ role: 'assistant', content: reply });
+    const reply = await askAI(char, userText, history[char.id]);
+    history[char.id].push({ role: 'user', content: userText });
+    history[char.id].push({ role: 'assistant', content: reply });
 
     typing.classList.remove('typing');
     typing.textContent = reply;
 
-    // 3D balon
     mesh.bubble.material.map = makeBubbleTexture(reply);
     mesh.bubble.material.needsUpdate = true;
     mesh.bubble.visible = true;
-    mesh.bubble.scale.set(3, 0.9, 1);
+    mesh.bubble.scale.set(3.2, 0.95, 1);
     clearTimeout(mesh._bubbleTimer);
     mesh._bubbleTimer = setTimeout(() => { mesh.bubble.visible = false; }, 6000);
 
-    statusEl.textContent = 'hazır';
-    statusEl.className = 'ok';
+    setStatus('bağlı', 'ok');
   } catch (e) {
     typing.classList.remove('typing');
-    typing.textContent = `⚠️ Hata: ${e.message}`;
-    statusEl.textContent = 'hata';
-    statusEl.className = 'err';
+    typing.textContent = `⚠️ ${e.message}`;
+    setStatus('hata', 'err');
   } finally {
     sendBtn.disabled = false;
   }
+}
+
+function setStatus(text, cls) {
+  statusText.textContent = text;
+  statusEl.className = cls;
 }
 
 sendBtn.addEventListener('click', () => {
@@ -430,10 +438,18 @@ chatInput.addEventListener('keydown', e => {
 });
 
 // ═══════════════════════════════════════════════════════
-//  EMİR KUTUSU
+//  Emir kutusu
 // ═══════════════════════════════════════════════════════
+const cmdFab = document.getElementById('cmdFab');
+const cmdPanel = document.getElementById('cmdPanel');
 const cmdInput = document.getElementById('cmdInput');
 const cmdBtn = document.getElementById('cmdBtn');
+
+cmdFab.addEventListener('click', () => {
+  cmdPanel.classList.toggle('open');
+  cmdFab.classList.toggle('active');
+  if (cmdPanel.classList.contains('open')) cmdInput.focus();
+});
 
 cmdBtn.addEventListener('click', async () => {
   const cmd = cmdInput.value.trim();
@@ -441,23 +457,15 @@ cmdBtn.addEventListener('click', async () => {
   cmdInput.value = '';
   cmdBtn.disabled = true;
 
-  const char = CHARACTERS.find(c => c.id === activeCharId);
-  const mesh = charMeshes[char.id];
+  const char = CHARACTERS.find(c => c.id === activeId);
+  const mesh = charObjs[char.id];
 
-  // Karaktere emri ilet
   try {
     const prompt = `Kullanıcı sana şu emri verdi: "${cmd}". Bu emri yerine getiriyormuş gibi kısa bir tepki ver (1-2 cümle). Yapabildiğini söyle veya neden yapamadığını açıkla.`;
-    let reply;
-    if (USE_GEMINI && GEMINI_API_KEY !== 'YOUR_GEMINI_KEY_HERE') {
-      reply = await callGemini(char.personality, [], prompt);
-    } else {
-      reply = await callGroq(char.personality, [], prompt);
-    }
+    const reply = await askAI(char, prompt, []);
 
-    // Basit animasyon: karakter zıplasın
     animateJump(mesh.group);
 
-    // Balonda göster
     mesh.bubble.material.map = makeBubbleTexture(reply);
     mesh.bubble.material.needsUpdate = true;
     mesh.bubble.visible = true;
@@ -476,14 +484,14 @@ cmdInput.addEventListener('keydown', e => {
   if (e.key === 'Enter') cmdBtn.click();
 });
 
-// Basit zıplama animasyonu
+// ═══════════════════════════════════════════════════════
+//  Zıplama animasyonu
+// ═══════════════════════════════════════════════════════
 const jumpAnims = [];
-function animateJump(obj) {
-  jumpAnims.push({ obj, t: 0 });
-}
+function animateJump(obj) { jumpAnims.push({ obj, t: 0 }); }
 
 // ═══════════════════════════════════════════════════════
-//  RENDER DÖNGÜSÜ
+//  Render döngüsü
 // ═══════════════════════════════════════════════════════
 const clock = new THREE.Clock();
 
@@ -492,14 +500,12 @@ function animate() {
   const dt = clock.getDelta();
   const t = clock.getElapsedTime();
 
-  // Karakterler hafifçe sallansın
   CHARACTERS.forEach(c => {
-    const m = charMeshes[c.id];
+    const m = charObjs[c.id];
     m.group.position.y = Math.sin(t * 1.2 + c.room.x) * 0.05;
     m.head.rotation.y = Math.sin(t * 0.6 + c.room.z) * 0.3;
   });
 
-  // Zıplama animasyonları
   for (let i = jumpAnims.length - 1; i >= 0; i--) {
     const a = jumpAnims[i];
     a.t += dt;
@@ -516,7 +522,6 @@ function animate() {
   renderer.render(scene, camera);
 }
 
-// Boyut değişimi
 window.addEventListener('resize', () => {
   camera.aspect = window.innerWidth / window.innerHeight;
   camera.updateProjectionMatrix();
@@ -525,7 +530,5 @@ window.addEventListener('resize', () => {
 
 // Başlat
 document.getElementById('loading').classList.add('hidden');
+setStatus('bağlı', 'ok');
 animate();
-
-statusEl.textContent = 'hazır';
-statusEl.className = 'ok';
