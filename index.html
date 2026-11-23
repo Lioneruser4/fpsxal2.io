@@ -1,139 +1,593 @@
 <!DOCTYPE html>
-<html lang="tr">
+<html lang="az">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Gerçekçi Trafik Simülatörü</title>
-    <style>
-        body { margin: 0; overflow: hidden; background-color: #000; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; user-select: none; -webkit-user-select: none; }
-        canvas { display: block; }
-        
-        /* Genel UI */
-        #ui-layer { position: absolute; top: 0; left: 0; width: 100vw; height: 100vh; pointer-events: none; z-index: 10; }
-        .clickable { pointer-events: auto; }
-        
-        /* HUD */
-        #hud { position: absolute; top: 20px; left: 20px; right: 20px; display: flex; justify-content: space-between; color: #fff; font-weight: bold; text-shadow: 1px 1px 3px #000; font-size: 1.2rem; }
-        #speed { font-size: 2rem; color: #00ffcc; }
-        #lives { color: #ff4444; }
-        #money { color: #ffd700; }
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Azerbaycan Kelime Oyunu</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  html, body {
+    width:100%; height:100%; overflow:hidden;
+    font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+    background: radial-gradient(ellipse at top, #1a0033 0%, #000814 60%, #000 100%);
+    color:#fff; user-select:none;
+  }
 
-        /* Lobi */
-        #lobby { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.85); display: flex; flex-direction: column; align-items: center; justify-content: center; color: white; pointer-events: auto; }
-        #lobby h1 { font-size: 2.5rem; color: #ffd700; margin-bottom: 10px; text-align: center;}
-        .btn { background: #007bff; color: white; border: none; padding: 15px 40px; font-size: 1.5rem; border-radius: 10px; margin: 10px; cursor: pointer; width: 250px; text-align: center; font-weight: bold; transition: 0.2s; }
-        .btn:hover { background: #0056b3; transform: scale(1.05); }
-        .btn-red { background: #dc3545; }
-        .btn-red:hover { background: #a71d2a; }
-        
-        /* Ayarlar */
-        #settings-panel { display: none; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: #222; padding: 20px; border-radius: 15px; color: white; pointer-events: auto; width: 80%; max-width: 400px; border: 2px solid #555;}
-        #settings-panel label { display: block; margin: 15px 0 5px; font-weight: bold;}
-        input[type=range] { width: 100%; }
-        select { width: 100%; padding: 10px; border-radius: 5px; font-size: 1rem; }
-        .close-btn { background: #555; margin-top: 20px; width: 100%; padding: 10px; }
+  /* ═══ LAYOUT ═══ */
+  #app {
+    display:grid;
+    grid-template-columns: 1fr 1fr;
+    grid-template-rows: 1fr auto;
+    grid-template-areas:
+      "left right"
+      "game game";
+    width:100vw; height:100vh;
+    gap:8px; padding:8px;
+  }
 
-        /* Kontroller */
-        #controls { display: none; position: absolute; bottom: 0; left: 0; width: 100%; height: 40vh; pointer-events: none; }
-        
-        /* Gaz / Fren */
-        .pedal-container { position: absolute; bottom: 20px; right: 20px; display: flex; flex-direction: column; gap: 10px; pointer-events: auto; }
-        .pedal { width: 80px; height: 80px; border-radius: 50%; border: 3px solid rgba(255,255,255,0.5); display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 1.2rem; color: white; text-shadow: 1px 1px 2px #000; }
-        #gas { background: rgba(0, 255, 0, 0.3); }
-        #brake { background: rgba(255, 0, 0, 0.3); }
-        #gas:active { background: rgba(0, 255, 0, 0.7); }
-        #brake:active { background: rgba(255, 0, 0, 0.7); }
+  /* Sol skor tablosu */
+  #leftBoard { grid-area:left; }
+  /* Sağ hediye tablosu */
+  #rightBoard { grid-area:right; }
+  /* Oyun alanı */
+  #game { grid-area:game; }
 
-        /* Direksiyon / Joystick / Butonlar */
-        #steering-container { position: absolute; bottom: 20px; left: 20px; pointer-events: auto; display: flex; align-items: flex-end; gap: 20px;}
-        
-        .steer-btn { width: 70px; height: 70px; background: rgba(255,255,255,0.2); border: 2px solid white; border-radius: 15px; color: white; font-size: 2rem; display: flex; align-items: center; justify-content: center; }
-        .steer-btn:active { background: rgba(255,255,255,0.5); }
-        
-        #joystick-base { width: 100px; height: 100px; background: rgba(255,255,255,0.1); border: 2px solid rgba(255,255,255,0.3); border-radius: 50%; position: relative; display: none; }
-        #joystick-stick { width: 40px; height: 40px; background: rgba(255,255,255,0.5); border-radius: 50%; position: absolute; top: 30px; left: 30px; }
-        
-        #wheel-view { width: 120px; height: 120px; border: 5px solid #fff; border-radius: 50%; position: relative; display: none; background: rgba(0,0,0,0.3);}
-        #wheel-view::before { content: ''; position: absolute; top: 50%; left: 10%; width: 80%; height: 10px; background: #fff; transform: translateY(-50%); }
-        #wheel-view::after { content: ''; position: absolute; top: 10%; left: 50%; width: 10px; height: 80%; background: #fff; transform: translateX(-50%); }
+  .board {
+    background: linear-gradient(145deg, rgba(30,10,60,.9), rgba(10,5,30,.95));
+    border:1px solid rgba(255,100,200,.3);
+    border-radius:14px; padding:10px;
+    overflow:hidden; display:flex; flex-direction:column;
+    box-shadow: 0 0 20px rgba(150,50,255,.15);
+  }
+  .board h3 {
+    font-size: clamp(11px, 2.2vw, 15px);
+    text-align:center; margin-bottom:8px;
+    letter-spacing:1px; text-transform:uppercase;
+    color:#ff7ae0; text-shadow:0 0 10px rgba(255,100,220,.6);
+  }
+  .board .list { flex:1; overflow-y:auto; display:flex; flex-direction:column; gap:4px; }
+  .board .list::-webkit-scrollbar { width:0; }
 
-        /* Oyun Sonu */
-        #game-over { display: none; position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(100, 0, 0, 0.8); flex-direction: column; align-items: center; justify-content: center; color: white; pointer-events: auto; z-index: 20; }
-        #game-over h1 { font-size: 3rem; color: #ff4444; }
-    </style>
+  .row {
+    display:flex; justify-content:space-between; align-items:center;
+    padding:4px 8px; border-radius:6px;
+    font-size: clamp(10px, 1.9vw, 14px);
+    background: rgba(255,255,255,.04);
+    transition: transform .3s, background .3s;
+    white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+  }
+  .row .name { overflow:hidden; text-overflow:ellipsis; flex:1; }
+  .row .score { color:#ffd700; font-weight:bold; margin-left:6px; }
+  .row .rank { color:#8af; margin-right:6px; font-weight:bold; }
+  .row.new { animation: rowIn .5s ease; background: rgba(255,215,0,.2); }
+  @keyframes rowIn {
+    from { transform: translateX(30px); opacity:0; }
+    to   { transform: translateX(0); opacity:1; }
+  }
+
+  #rightBoard .row { background: rgba(255,100,200,.08); }
+  #rightBoard .score { color:#ff7ae0; }
+
+  /* ═══ OYUN ALANI ═══ */
+  #game {
+    background: linear-gradient(160deg, rgba(20,0,40,.95), rgba(40,10,80,.9));
+    border:2px solid rgba(255,100,220,.4);
+    border-radius:18px;
+    padding: 14px 10px;
+    display:flex; flex-direction:column;
+    align-items:center; justify-content:center;
+    gap:10px;
+    position:relative; overflow:hidden;
+    box-shadow: 0 0 40px rgba(200,50,255,.25), inset 0 0 60px rgba(100,0,200,.15);
+  }
+
+  #game::before {
+    content:''; position:absolute; inset:0;
+    background: radial-gradient(circle at 50% 50%, rgba(255,100,220,.1), transparent 70%);
+    animation: pulse 3s ease-in-out infinite;
+    pointer-events:none;
+  }
+  @keyframes pulse { 0%,100%{opacity:.4} 50%{opacity:1} }
+
+  #hint {
+    font-size: clamp(13px, 2.8vw, 18px);
+    color:#a0e0ff; text-align:center;
+    letter-spacing:1px; z-index:1;
+    text-shadow:0 0 8px rgba(100,200,255,.5);
+  }
+  #hint b { color:#ffd700; }
+
+  #mask {
+    display:flex; gap: clamp(4px, 1vw, 8px);
+    flex-wrap:wrap; justify-content:center;
+    z-index:1;
+  }
+  .letter-box {
+    width: clamp(28px, 6vw, 46px);
+    height: clamp(32px, 7vw, 54px);
+    display:flex; align-items:center; justify-content:center;
+    background: linear-gradient(180deg, rgba(255,255,255,.08), rgba(255,255,255,.02));
+    border:2px solid rgba(255,100,220,.4);
+    border-radius:8px;
+    font-size: clamp(16px, 3.5vw, 26px);
+    font-weight:bold;
+    color:#fff;
+    position:relative;
+    transition: all .4s;
+  }
+  .letter-box.revealed {
+    background: linear-gradient(180deg, rgba(255,215,0,.3), rgba(255,150,0,.15));
+    border-color:#ffd700;
+    color:#ffd700;
+    box-shadow: 0 0 15px rgba(255,215,0,.6);
+    transform: scale(1.05);
+  }
+
+  #foundFlash {
+    position:absolute; inset:0;
+    display:flex; align-items:center; justify-content:center;
+    font-size: clamp(20px, 5vw, 40px);
+    font-weight:bold; text-align:center;
+    background: rgba(0,0,0,.75);
+    color:#ffd700; text-shadow:0 0 20px rgba(255,215,0,.9);
+    opacity:0; pointer-events:none;
+    transition: opacity .3s;
+    padding:20px; z-index:10;
+    border-radius:18px;
+  }
+  #foundFlash.show { opacity:1; animation: foundPulse .6s ease; }
+  @keyframes foundPulse {
+    0% { transform: scale(.8); }
+    50% { transform: scale(1.08); }
+    100% { transform: scale(1); }
+  }
+
+  /* Konfeti */
+  .confetti {
+    position:fixed; width:10px; height:10px;
+    pointer-events:none; z-index:100;
+    animation: fall 2s linear forwards;
+  }
+  @keyframes fall {
+    to { transform: translateY(110vh) rotate(720deg); opacity:0; }
+  }
+
+  /* Ses açma (ilk tık için) */
+  #tapStart {
+    position:fixed; inset:0; z-index:999;
+    background:rgba(0,0,0,.85);
+    display:flex; align-items:center; justify-content:center;
+    font-size: clamp(16px, 4vw, 24px);
+    color:#ff7ae0; text-align:center; padding:30px;
+    cursor:pointer;
+  }
+  #tapStart.hidden { display:none; }
+
+  /* Mobil dikey */
+  @media (max-aspect-ratio: 1/1) {
+    #app {
+      grid-template-columns: 1fr 1fr;
+      grid-template-rows: 28% 1fr;
+      grid-template-areas:
+        "left right"
+        "game game";
+    }
+  }
+  /* Geniş ekran (16:9) */
+  @media (min-aspect-ratio: 1/1) {
+    #app {
+      grid-template-columns: 22% 1fr 22%;
+      grid-template-rows: 1fr;
+      grid-template-areas: "left game right";
+    }
+  }
+</style>
 </head>
 <body>
 
-    <!-- Three.js Kütüphanesi -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<div id="tapStart">🔊 Sesi başlatmak için ekrana dokun</div>
 
-    <!-- UI Katmanı -->
-    <div id="ui-layer">
-        
-        <!-- HUD (Oyun İçi Bilgiler) -->
-        <div id="hud">
-            <div>Hız: <span id="speed">0</span> km/s</div>
-            <div>Para: <span id="money">0</span> ₺</div>
-            <div>Can: <span id="lives">❤❤❤</span></div>
-        </div>
+<div id="app">
+  <!-- SOL: Oyuncular skoru -->
+  <div class="board" id="leftBoard">
+    <h3>🏆 Oyunçular</h3>
+    <div class="list" id="leftList"></div>
+  </div>
 
-        <!-- Lobi -->
-        <div id="lobby">
-            <h1>TRAFİK SİMÜLATÖRÜ</h1>
-            <p style="color:#aaa; margin-bottom: 30px;">Gerçekçi Sürüş Deneyimi</p>
-            <button class="btn" onclick="startGame()">OYUNA BAŞLA</button>
-            <button class="btn" onclick="openSettings()">AYARLAR</button>
-        </div>
+  <!-- OYUN ALANI -->
+  <div id="game">
+    <div id="hint"></div>
+    <div id="mask"></div>
+    <div id="foundFlash"></div>
+  </div>
 
-        <!-- Ayarlar -->
-        <div id="settings-panel">
-            <h2 style="text-align:center; margin-top:0;">Ayarlar</h2>
-            
-            <label>Trafik Yoğunluğu:</label>
-            <input type="range" id="traffic-density" min="1" max="10" value="5">
-            
-            <label>Kontrol Tipi:</label>
-            <select id="control-type">
-                <option value="buttons">Butonlar (Sol/Sağ)</option>
-                <option value="joystick">Joystick</option>
-                <option value="wheel">Direksiyon</option>
-            </select>
-            
-            <button class="btn close-btn" onclick="closeSettings()">KAYDET VE KAPAT</button>
-        </div>
+  <!-- SAĞ: Hediye atanlar -->
+  <div class="board" id="rightBoard">
+    <h3>🎁 Hədiyyə</h3>
+    <div class="list" id="rightList"></div>
+  </div>
+</div>
 
-        <!-- Kontroller (Oyun içinde görünür) -->
-        <div id="controls">
-            <!-- Sol Taraf: Direksiyon / Joystick / Butonlar -->
-            <div id="steering-container">
-                <div id="btn-controls" style="display: flex; gap: 10px;">
-                    <div class="steer-btn" id="left-btn">◀</div>
-                    <div class="steer-btn" id="right-btn">▶</div>
-                </div>
-                <div id="joystick-base">
-                    <div id="joystick-stick"></div>
-                </div>
-                <div id="wheel-view"></div>
-            </div>
+<script>
+/* ═══════════════════════════════════════════════
+   AYARLAR
+   ═══════════════════════════════════════════════ */
+const WS_URL = location.origin.replace(/^http/, 'ws');
+const TEST_MODE = new URLSearchParams(location.search).has('test');
 
-            <!-- Sağ Taraf: Gaz / Fren -->
-            <div class="pedal-container">
-                <div class="pedal" id="gas">GAZ</div>
-                <div class="pedal" id="brake">FREN</div>
-            </div>
-        </div>
+/* ═══════════════════════════════════════════════
+   AZERBAYCANCA KELİMELER
+   ═══════════════════════════════════════════════ */
+const WORDS = [
+  { word: 'BAKI', hint: 'Azərbaycanın paytaxtı' },
+  { word: 'ŞƏKİ', hint: 'Şirniyyatı ilə məşhur şəhər' },
+  { word: 'NAXÇIVAN', hint: 'Muxtar respublika' },
+  { word: 'XƏZƏR', hint: 'Ən böyük göl (dəniz)' },
+  { word: 'ALMA', hint: 'Qırmızı meyvə' },
+  { word: 'ARMUD', hint: 'Sarı meyvə' },
+  { word: 'ÜZÜM', hint: 'Salxımla bitən meyvə' },
+  { word: 'NAR', hint: 'Qırmızı dənəli meyvə' },
+  { word: 'QOÇ', hint: 'Erkək qoyun' },
+  { word: 'ASLAN', hint: 'Meşənin kralı' },
+  { word: 'QARTAL', hint: 'Göydə uçan quş' },
+  { word: 'BÜLBÜL', hint: 'Gözəl oxuyan quş' },
+  { word: 'GÜNƏŞ', hint: 'Səhər çıxan ulduz' },
+  { word: 'ULDUZ', hint: 'Gecə parlayan' },
+  { word: 'AY', hint: 'Gecə səmasında' },
+  { word: 'DƏNİZ', hint: 'Su hövzəsi' },
+  { word: 'DAĞ', hint: 'Yüksək təpə' },
+  { word: 'ÇAY', hint: 'Axan su və içki' },
+  { word: 'KİTAB', hint: 'Oxumaq üçün' },
+  { word: 'MƏKTƏB', hint: 'Təhsil yeri' },
+  { word: 'MÜƏLLİM', hint: 'Dərs deyən' },
+  { word: 'ŞAGİRD', hint: 'Dərs oxuyan' },
+  { word: 'ANA', hint: 'Valideyn' },
+  { word: 'ATA', hint: 'Valideyn' },
+  { word: 'QARDAŞ', hint: 'Ailə üzvü' },
+  { word: 'DOST', hint: 'Yaxın insan' },
+  { word: 'ÜRƏK', hint: 'Bədən orqanı' },
+  { word: 'GÖZ', hint: 'Görmə orqanı' },
+  { word: 'ƏL', hint: 'Bədən üzvü' },
+  { word: 'PİŞİK', hint: 'Ev heyvanı' },
+  { word: 'İT', hint: 'Sadiq heyvan' },
+  { word: 'AT', hint: 'Minilən heyvan' },
+  { word: 'İNƏK', hint: 'Süd verən' },
+  { word: 'TOYIQ', hint: 'Kiçik quş' },
+  { word: 'BALIQ', hint: 'Suda yaşayan' },
+  { word: 'ÇÖRƏK', hint: 'Əsas qida' },
+  { word: 'PLOV', hint: 'Milli yemək' },
+  { word: 'DOLMA', hint: 'Milli yemək' },
+  { word: 'KABAB', hint: 'Odda bişən' },
+  { word: 'ÇAYQARA', hint: 'İçki növü' },
+  { word: 'ŞƏKƏR', hint: 'Şirin' },
+  { word: 'DUZ', hint: 'Duzlu' },
+  { word: 'BAL', hint: 'Arı məhsulu' },
+  { word: 'SÜD', hint: 'Ağ içki' },
+  { word: 'SU', hint: 'Şəffaf içki' },
+  { word: 'QAR', hint: 'Ağ yağış' },
+  { word: 'YAĞIŞ', hint: 'Göydən düşən' },
+  { word: 'KÜLƏK', hint: 'Əsən hava' },
+  { word: 'İSTİ', hint: 'İsti hava' },
+  { word: 'SOYUQ', hint: 'Soyuq hava' },
+  { word: 'BAHAR', hint: 'Fəsil' },
+  { word: 'YAY', hint: 'Fəsil' },
+  { word: 'PAYIZ', hint: 'Fəsil' },
+  { word: 'QIŞ', hint: 'Fəsil' },
+  { word: 'AVTOBUS', hint: 'Nəqliyyat' },
+  { word: 'MAŞIN', hint: 'Nəqliyyat' },
+  { word: 'TƏYYARƏ', hint: 'Uçan nəqliyyat' },
+  { word: 'GƏMİ', hint: 'Su nəqliyyatı' },
+  { word: 'VELOSİPED', hint: 'İki təkərli' },
+  { word: 'TELEFON', hint: 'Rabitə cihazı' },
+  { word: 'KOMPÜTER', hint: 'Elektron cihaz' },
+  { word: 'TELEVİZOR', hint: 'Ekran cihazı' },
+  { word: 'RADİO', hint: 'Səs cihazı' },
+  { word: 'SAAT', hint: 'Vaxt göstərir' },
+  { word: 'QAPI', hint: 'Giriş yeri' },
+  { word: 'PƏNCƏRƏ', hint: 'İşıq gələn yer' },
+  { word: 'STOL', hint: 'Üzərində yeyilir' },
+  { word: 'STUL', hint: 'Oturmaq üçün' },
+  { word: 'ÇİÇƏK', hint: 'Gözəl bitki' },
+  { word: 'AĞAC', hint: 'Böyük bitki' },
+  { word: 'MEŞƏ', hint: 'Ağaclar çoxluğu' },
+  { word: 'OT', hint: 'Yaşıl bitki' },
+  { word: 'TORPAQ', hint: 'Yer' },
+  { word: 'DAŞ', hint: 'Sərt cisim' },
+  { word: 'QIZIL', hint: 'Qiymətli metal' },
+  { word: 'GÜMÜŞ', hint: 'Qiymətli metal' },
+  { word: 'DƏMİR', hint: 'Metal' },
+  { word: 'PUL', hint: 'Ödəniş vasitəsi' },
+  { word: 'KİŞİ', hint: 'İnsan' },
+  { word: 'QADIN', hint: 'İnsan' },
+  { word: 'UŞAQ', hint: 'Balaca insan' },
+  { word: 'QOCA', hint: 'Yaşlı insan' },
+  { word: 'GƏNC', hint: 'Cavan insan' },
+  { word: 'AD', hint: 'Şəxsi ad' },
+  { word: 'SOYAD', hint: 'Ailə adı' },
+  { word: 'ŞƏHƏR', hint: 'Yaşayış yeri' },
+  { word: 'KƏND', hint: 'Kiçik yaşayış yeri' },
+  { word: 'EV', hint: 'Yaşayış binası' },
+  { word: 'YOL', hint: 'Gediş yeri' },
+  { word: 'KÖRPÜ', hint: 'Çay üzərində' },
+  { word: 'BAĞ', hint: 'Meyvə yeri' },
+  { word: 'BOSTAN', hint: 'Tərəvəz yeri' },
+  { word: 'BUĞDA', hint: 'Dənli bitki' },
+  { word: 'DÜYÜ', hint: 'Plovun əsası' },
+  { word: 'QARĞIDALI', hint: 'Ağ çiçək' },
+  { word: 'BƏNÖVŞƏ', hint: 'Bənövşəyi çiçək' },
+  { word: 'LALƏ', hint: 'Qırmızı çiçək' },
+];
 
-        <!-- Oyun Sonu Ekranı -->
-        <div id="game-over">
-            <h1>KAZA YAPTINIZ!</h1>
-            <p id="crash-reason">Öndeki araca çarptınız.</p>
-            <p>Toplanan Para: <span id="final-money">0</span> ₺</p>
-            <button class="btn btn-red" onclick="restartGame()">YENİDEN BAŞLAT</button>
-        </div>
+/* ═══════════════════════════════════════════════
+   OYUN STATE
+   ═══════════════════════════════════════════════ */
+let currentWord = null;
+let players = {};   // { name: score }
+let gifters = {};   // { name: totalGiftValue }
+let usedWords = new Set();
 
-    </div>
+/* ═══════════════════════════════════════════════
+   SES (Web Audio API - dosyasız)
+   ═══════════════════════════════════════════════ */
+let audioCtx = null;
+function initAudio() {
+  if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  if (audioCtx.state === 'suspended') audioCtx.resume();
+}
+function playTone(freq, duration = 0.15, type = 'sine', vol = 0.15) {
+  if (!audioCtx) return;
+  const osc = audioCtx.createOscillator();
+  const gain = audioCtx.createGain();
+  osc.type = type;
+  osc.frequency.value = freq;
+  gain.gain.setValueAtTime(vol, audioCtx.currentTime);
+  gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + duration);
+  osc.connect(gain); gain.connect(audioCtx.destination);
+  osc.start(); osc.stop(audioCtx.currentTime + duration);
+}
+function playCorrect() {
+  playTone(523, .12, 'sine', .2);          // C5
+  setTimeout(() => playTone(659, .12, 'sine', .2), 120); // E5
+  setTimeout(() => playTone(784, .25, 'sine', .25), 240); // G5
+  setTimeout(() => playTone(1047, .3, 'sine', .2), 380);  // C6
+}
+function playWrong() {
+  playTone(220, .15, 'sawtooth', .1);
+  setTimeout(() => playTone(180, .2, 'sawtooth', .1), 120);
+}
+function playGift() {
+  playTone(880, .08, 'triangle', .15);
+  setTimeout(() => playTone(1108, .1, 'triangle', .15), 80);
+}
 
-    <!-- Oyun Mantığı -->
-    <script src="game.js"></script>
+/* ═══════════════════════════════════════════════
+   YENİ KELİME SEÇ
+   ═══════════════════════════════════════════════ */
+function pickWord() {
+  const remaining = WORDS.filter(w => !usedWords.has(w.word));
+  if (remaining.length === 0) usedWords.clear();
+  const pool = remaining.length ? remaining : WORDS;
+  currentWord = pool[Math.floor(Math.random() * pool.length)];
+  usedWords.add(currentWord.word);
+  renderHint();
+}
+
+function renderHint() {
+  const w = currentWord.word;
+  document.getElementById('hint').innerHTML =
+    `İpucu: <b>${currentWord.hint}</b> • <b>${w.length}</b> hərf`;
+
+  const mask = document.getElementById('mask');
+  mask.innerHTML = '';
+  for (let i = 0; i < w.length; i++) {
+    const box = document.createElement('div');
+    box.className = 'letter-box';
+    box.textContent = i === 0 ? w[i] : '';
+    if (i === 0) box.classList.add('revealed');
+    mask.appendChild(box);
+  }
+}
+
+/* ═══════════════════════════════════════════════
+   DOĞRU CEVAP KONTROLÜ
+   ═══════════════════════════════════════════════ */
+function normalize(s) {
+  return s.toUpperCase()
+    .replace(/İ/g, 'İ').replace(/I/g, 'I')
+    .trim();
+}
+
+function checkAnswer(user, text) {
+  if (!currentWord) return false;
+
+  // Yorumda kelime geçiyor mu?
+  const upperText = text.toUpperCase();
+  const target = currentWord.word;
+  if (upperText.includes(target)) {
+    correctAnswer(user);
+    return true;
+  }
+  return false;
+}
+
+function correctAnswer(user) {
+  // Skor artır
+  players[user] = (players[user] || 0) + 10;
+  renderBoards();
+
+  // Animasyon
+  document.getElementById('foundFlash').textContent =
+    `🎉 ${user}\n"${currentWord.word}" — düzgün tapdı!`;
+  document.getElementById('foundFlash').classList.add('show');
+  playCorrect();
+  confetti();
+
+  // Kelime harflerini aç
+  const boxes = document.querySelectorAll('.letter-box');
+  boxes.forEach((b, i) => {
+    setTimeout(() => {
+      b.textContent = currentWord.word[i];
+      b.classList.add('revealed');
+    }, i * 80);
+  });
+
+  // 2.5 sn sonra yeni kelime
+  setTimeout(() => {
+    document.getElementById('foundFlash').classList.remove('show');
+    pickWord();
+  }, 2500);
+}
+
+/* ═══════════════════════════════════════════════
+   KONFETİ
+   ═══════════════════════════════════════════════ */
+function confetti() {
+  const colors = ['#ff7ae0', '#ffd700', '#00e5ff', '#7cff00', '#ff5050', '#a070ff'];
+  for (let i = 0; i < 60; i++) {
+    const c = document.createElement('div');
+    c.className = 'confetti';
+    c.style.left = Math.random() * 100 + 'vw';
+    c.style.top = '-20px';
+    c.style.background = colors[Math.floor(Math.random() * colors.length)];
+    c.style.animationDelay = Math.random() * 0.5 + 's';
+    c.style.animationDuration = (1.5 + Math.random()) + 's';
+    if (Math.random() > .5) c.style.borderRadius = '50%';
+    document.body.appendChild(c);
+    setTimeout(() => c.remove(), 3000);
+  }
+}
+
+/* ═══════════════════════════════════════════════
+   SKOR TABLOLARI
+   ═══════════════════════════════════════════════ */
+function renderBoards() {
+  // Sol: Oyuncular
+  const sortedPlayers = Object.entries(players)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 10);
+  const leftList = document.getElementById('leftList');
+  leftList.innerHTML = '';
+  sortedPlayers.forEach(([name, score], i) => {
+    const row = document.createElement('div');
+    row.className = 'row';
+    row.innerHTML = `<span class="rank">${i + 1}.</span><span class="name">${name}</span><span class="score">${score}</span>`;
+    leftList.appendChild(row);
+  });
+  if (sortedPlayers.length === 0) {
+    leftList.innerHTML = '<div style="opacity:.4;text-align:center;font-size:12px;margin-top:10px;">Hələ oyunçu yoxdur</div>';
+  }
+
+  // Sağ: Hediye atanlar
+  const sortedGifters = Object.entries(gifters)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 10);
+  const rightList = document.getElementById('rightList');
+  rightList.innerHTML = '';
+  sortedGifters.forEach(([name, val], i) => {
+    const row = document.createElement('div');
+    row.className = 'row';
+    row.innerHTML = `<span class="rank">${i + 1}.</span><span class="name">${name}</span><span class="score">${val}</span>`;
+    rightList.appendChild(row);
+  });
+  if (sortedGifters.length === 0) {
+    rightList.innerHTML = '<div style="opacity:.4;text-align:center;font-size:12px;margin-top:10px;">Hələ hədiyyə yoxdur</div>';
+  }
+}
+
+/* ═══════════════════════════════════════════════
+   WEBSOCKET
+   ═══════════════════════════════════════════════ */
+let ws = null;
+function connectWS() {
+  try {
+    ws = new WebSocket(WS_URL);
+    ws.onopen = () => {
+      console.log('WS bağlandı');
+      ws.send(JSON.stringify({ type: 'hello', role: 'viewer' }));
+    };
+    ws.onmessage = e => {
+      try {
+        const msg = JSON.parse(e.data);
+        if (msg.type === 'comment') handleComment(msg.user, msg.text);
+        if (msg.type === 'gift') handleGift(msg.user, msg.gift, msg.count || 1);
+      } catch {}
+    };
+    ws.onclose = () => setTimeout(connectWS, 2000);
+    ws.onerror = () => ws.close();
+  } catch {
+    setTimeout(connectWS, 2000);
+  }
+}
+connectWS();
+
+function handleComment(user, text) {
+  if (checkAnswer(user, text)) return;
+  // Yanlış cevap — hafif ses
+  if (currentWord && text.toUpperCase().includes(currentWord.word[0])) {
+    // İlk harfi doğru yazdıysa belki yakın
+    // playWrong(); // çok gürültü olur, kapatıyorum
+  }
+}
+
+function handleGift(user, giftName, count) {
+  const value = (giftValue(giftName) || 1) * count;
+  gifters[user] = (gifters[user] || 0) + value;
+  renderBoards();
+  playGift();
+  // Görsel efekt
+  document.getElementById('foundFlash').textContent = `🎁 ${user}\n${giftName} göndərdi!`;
+  document.getElementById('foundFlash').classList.add('show');
+  setTimeout(() => document.getElementById('foundFlash').classList.remove('show'), 1500);
+}
+
+function giftValue(name) {
+  const map = { 'Rose': 1, 'TikTok': 1, 'Finger Heart': 5, 'Heart': 1, 'GG': 1, 'Doughnut': 30, 'Hand Hearts': 1, 'Ice Cream Cone': 1, 'Music Note': 1 };
+  return map[name] || 1;
+}
+
+/* ═══════════════════════════════════════════════
+   TEST MODU (?test=1)
+   ═══════════════════════════════════════════════ */
+if (TEST_MODE) {
+  const testUsers = ['Elvin', 'Aysel', 'Rəşad', 'Günel', 'Kamran', 'Leyla', 'Tural', 'Nigar'];
+  const testGifts = ['Rose', 'TikTok', 'Heart', 'Doughnut', 'GG'];
+
+  // Her 4 sn'de bir sahte yorum (bazen doğru)
+  setInterval(() => {
+    const user = testUsers[Math.floor(Math.random() * testUsers.length)];
+    if (currentWord && Math.random() < 0.15) {
+      // Doğru cevap simülasyonu
+      handleComment(user, `bilmədim ama ${currentWord.word} olsun`);
+    } else {
+      handleComment(user, 'salam necəsən?');
+    }
+  }, 4000);
+
+  // Her 10 sn'de hediye
+  setInterval(() => {
+    const user = testUsers[Math.floor(Math.random() * testUsers.length)];
+    const gift = testGifts[Math.floor(Math.random() * testGifts.length)];
+    handleGift(user, gift, 1 + Math.floor(Math.random() * 3));
+  }, 10000);
+
+  console.log('🧪 TEST MODU AKTİF');
+}
+
+/* ═══════════════════════════════════════════════
+   BAŞLAT
+   ═══════════════════════════════════════════════ */
+document.getElementById('tapStart').addEventListener('click', () => {
+  initAudio();
+  document.getElementById('tapStart').classList.add('hidden');
+  pickWord();
+  renderBoards();
+});
+
+// Test modunda tap ekranını otomatik geç
+if (TEST_MODE) {
+  document.getElementById('tapStart').classList.add('hidden');
+  setTimeout(() => { initAudio(); pickWord(); renderBoards(); }, 100);
+}
+</script>
 </body>
 </html>
